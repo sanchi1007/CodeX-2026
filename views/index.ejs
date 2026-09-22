@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Custom Dark Glassmorphism CSS with Cache-Buster -->
+    <link rel="stylesheet" href="/style.css?v=<%= Date.now() %>">
+</head>
+<body data-auto-open-auth="<%= (typeof autoOpenAuth !== 'undefined' && autoOpenAuth) ? 'true' : 'false' %>">
+    <!-- 🌟 PRODUCT LOADING SCREEN (Dismisses under 1.5s, respects reduced-motion) -->
+    <div id="appLoadingSplash" class="app-loading-splash">
+        <div class="splash-content">
+            <div class="splash-logo">🛡️</div>
+            <h1 class="splash-title">SAFESTEP</h1>
+            <p class="splash-sub">Preparing your safe road corridor...</p>
+            <div class="splash-loader-bar"><div class="splash-loader-fill"></div></div>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <!-- 🛡️ GUARDIAN SENTINEL TRUTHFUL STATUS RIBBON -->
+        <div id="guardianSentinelRibbon" class="guardian-sentinel-ribbon">
+            <div class="guardian-ribbon-item">
+                <span class="pulse-green-dot"></span>
+                <span id="guardianTitleStatus" class="ribbon-title">🛡️ SAFESTEP GUARDIAN STANDBY</span>
+            </div>
+            <div class="guardian-ribbon-divider"></div>
+            <div class="guardian-ribbon-item">
+                <span id="guardianContactsStatus">👥 No trusted contact configured</span>
+            </div>
+            <div class="guardian-ribbon-divider"></div>
+            <div class="guardian-ribbon-item">
+                <span id="guardianDeadlineText">⏱️ Check-in: Standby</span>
+            </div>
+            <div class="guardian-ribbon-divider"></div>
+            <div class="guardian-ribbon-item">
+                <span id="batterySentinelText">🔋 Battery: Monitoring</span>
+            </div>
+            <div id="crowdPresenceIndicator" class="guardian-ribbon-item presence" style="display:none;"></div>
+        </div>
+
+        <!-- Live Toast Notification for Safety Alerts & Rerouting -->
+        <div id="liveToast" class="live-toast hidden" role="alert" aria-live="assertive">
+            <span class="toast-icon">⚡</span>
+            <span id="toastMessage">Live alert message</span>
+        </div>
+
+        <!-- 🚶 TURN-BY-TURN NAVIGATION HUD: TOP MANEUVER CARD -->
+        <div id="navigationHUDTop" class="navigation-hud-top">
+            <div class="hud-icon-box">
+                <span id="navTurnIcon">⬆️</span>
+            </div>
+            <div class="hud-details-box">
+                <div class="hud-instruction-row">
+                    <span id="navTurnText">Starting route navigation...</span>
+                </div>
+                <div class="hud-sub-row">
+                    <span id="navTurnStreet" class="hud-street-name">Connecting to road network</span>
+                    <span class="hud-sep">&bull;</span>
+                    <span id="navTurnDistance" class="hud-turn-dist">0 m</span>
+                </div>
+            </div>
+            <button id="btnNavSOS" class="btn-hud-sos" data-action="trigger-sos" title="Emergency SOS" aria-label="Trigger Emergency SOS">
+                🚨 SOS
+            </button>
+        </div>
+
+        <!-- 📊 NAVIGATION HUD: BOTTOM TRIP INFO & EMERGENCY CONTROLS BAR -->
+        <div id="navigationHUDBottom" class="navigation-hud-bottom">
+            <div class="hud-trip-metrics">
+                <div class="hud-stat-col">
+                    <span class="hud-stat-label">Estimated Arrival</span>
+                    <span id="hudEta" class="hud-stat-val text-green">--:-- --</span>
+                </div>
+                <div class="hud-stat-divider"></div>
+                <div class="hud-stat-col">
+                    <span class="hud-stat-label">Remaining</span>
+                    <span id="hudRemainingTime" class="hud-stat-val text-cyan">-- min</span>
+                    <span id="hudRemainingDist" class="hud-stat-sub">-- m</span>
+                </div>
+                <div class="hud-stat-divider"></div>
+                <div class="hud-stat-col">
+                    <span class="hud-stat-label">Safety Status</span>
+                    <span id="hudSafetyStatus" class="hud-safety-pill safest">🟢 Safe Corridor</span>
+                    <span id="hudDeadlineText" class="hud-stat-sub">⏱️ Check-in: Standby</span>
+                </div>
+            </div>
+            <div class="hud-action-controls">
+                <a href="tel:112" class="btn-hud-tool btn-hud-call112" title="Direct Phone Call to 112 Police Emergency">
+                    📞 112
+                </a>
+                <button id="btnHudHaven" class="btn-hud-tool haven" data-action="escape-haven" title="Emergency Safe Haven Sanctuary Reroute">
+                    🏃 Safe Haven
+                </button>
+                <button id="btnHudSiren" class="btn-hud-tool btn-siren-trigger" data-action="toggle-siren" title="Loud Emergency Alarm">
+                    🚨 Loud Alarm
+                </button>
+                <button id="btnHudFakeCall" class="btn-hud-tool" data-action="trigger-fake-call" data-action-param="Dad (Home)" title="Simulate Fake Call">
+                    📞 Fake Call
+                </button>
+                <button id="btnHudCheckIn" class="btn-hud-tool" data-action="open-checkin" title="Safe Arrival Check-in">
+                    ✅ Check In
+                </button>
+                <button id="btnVoiceToggle" class="btn-hud-tool" title="Toggle Hands-Free Voice Guidance">
+                    🔊 Voice ON
+                </button>
+                <button id="btnShareTripHud" class="btn-hud-tool" data-action="open-share-trip" title="Share live location with contacts">
+                    📤 Share
+                </button>
+                <button id="btnEndNav" class="btn-hud-end" data-action="stop-nav" title="End Navigation">
+                    ⏹️ End Trip
+                </button>
+            </div>
+        </div>
+
+        <!-- Top Navigation Banner (Overview Mode) -->
+        <div id="topNavBanner" class="top-nav-banner safe">
+            <div class="nav-icon-col">
+                <span id="navDirectionIcon">🚶</span>
+            </div>
+            <div class="nav-info-col">
+                <div class="nav-primary-row">
+                    <span id="navRouteName">Safe Pedestrian Corridor</span>
+                    <span id="navStatusBadge" class="nav-badge safe">🟢 RECOMMENDED ROUTE</span>
+                </div>
+                <div class="nav-secondary-row">
+                    <span id="navTime">-- min</span>
+                    <span class="nav-bullet">&bull;</span>
+                    <span id="navDistance">-- m</span>
+                    <span class="nav-bullet">&bull;</span>
+                    <span id="navSafetyDesc">Lighting & Safe Havens along corridor</span>
+                </div>
+            </div>
+            <button id="btnSimulateWalk" class="btn-walk" title="Start road walking navigation">
+                ▶️ Start Walking
+            </button>
+            <button id="btnTopHaven" class="btn-haven-top" data-action="escape-haven" title="Emergency Escape to Nearest Safe Haven Sanctuary">
+                🏃 Safe Haven
+            </button>
+        </div>
+
+        <!-- 🚨 FLOATING SOS EMERGENCY BUTTON -->
+        <button id="btnFloatingSOS" class="floating-sos-btn" title="Emergency SOS" aria-label="Open Emergency Menu">
+            <span class="sos-icon">🚨</span>
+            <span class="sos-label">SOS</span>
+        </button>
+
+        <!-- 🎮 DEMO MODE QUICK CONTROLS BAR -->
+        <div id="demoControlsPanel" class="demo-controls-panel" style="display:none;">
+            <span class="demo-badge">🎮 DEMO MODE ACTIVE</span>
+            <button id="btnDemoWalk" class="btn-demo-action">▶️ Simulate Road Walk</button>
+            <button id="btnDemoDeviate" class="btn-demo-action warning">⚠️ Simulate Alley Deviation</button>
+            <button class="btn-demo-action danger" data-action="trigger-sos">🚨 Test SOS</button>
+        </div>
+
+        <!-- Floating Safety Dashboard & Controls Sidebar -->
+        <aside class="control-panel">
+            <header class="panel-header">
+                <div class="header-brand-row">
+                    <h2>🛡️ SafeStep</h2>
+                    <div class="header-right-tools">
+                        <span id="gpsStatusBadge" class="gps-badge acquiring">🟡 GPS...</span>
+                        <button id="btnUserAuth" class="btn-user-auth" data-action="open-auth" title="Emergency Contacts & Safety Profile">👤 Safety Profile</button>
+                    </div>
+                </div>
+                <p class="tagline">Time-Aware & Truthful Safe Pedestrian Navigation</p>
+                
+                <!-- Quick Emergency Access Actions (Requirement 25) -->
+                <div class="emergency-quick-bar">
+                    <a href="tel:112" class="quick-action-pill call112" title="Call National Emergency 112">📞 Call 112</a>
+                    <button class="quick-action-pill escape-haven" data-action="escape-haven" title="Emergency Safe Haven Sanctuary Reroute">🏃 Safe Haven</button>
+                    <button class="quick-action-pill share" data-action="open-share-trip" title="Share live location">📤 Share Location</button>
+                    <button class="quick-action-pill siren btn-siren-trigger" data-action="toggle-siren" title="Activate Loud Alarm">🚨 Loud Alarm</button>
+                    <button class="quick-action-pill report" data-action="open-report" title="Report safety condition or hazard">⚠️ Report</button>
+                </div>
+
+                <div class="header-action-row">
+                    <button class="btn-header-tool fakecall" data-action="trigger-fake-call" data-action-param="Dad (Home)" title="Fake Call Simulator">📞 Fake Call</button>
+                    <button class="btn-header-tool strobe" data-action="toggle-strobe" title="Emergency Visual Beacon">🔦 Beacon</button>
+                    <button id="btnToggleDemoMode" class="btn-demo-mode" title="Toggle Demo Mode">🎮 DEMO</button>
+                </div>
+            </header>
+
+            <!-- Navigation Inputs: Origin & Destination -->
+            <div class="card search-card">
+                <div class="input-group">
+                    <label>Start Location (Origin):</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="startInput" placeholder="Type start address & press Enter..." autocomplete="off">
+                        <button id="btnSearchStart" class="btn-icon" title="Search Start Location">🔍 Go</button>
+                        <button id="btnGps" class="btn-icon" title="Center on Real GPS Location">📍 GPS</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Destination:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="destInput" placeholder="Type destination landmark & press Enter..." autocomplete="off">
+                        <button id="btnSearchDest" class="btn-icon" title="Search Destination">🔍 Go</button>
+                    </div>
+                </div>
+                <p class="map-hint">💡 <i>Type any address or drag pins anywhere on the map!</i></p>
+            </div>
+
+            <!-- Exact Full Addresses Card -->
+            <div class="card active-locations-card">
+                <div class="loc-item start-item">
+                    <div class="loc-badge-row">
+                        <span class="loc-pill start">📍 START (ORIGIN)</span>
+                    </div>
+                    <div id="startFullAddress" class="loc-full-text">Fetching exact address...</div>
+                </div>
+                <div class="loc-divider"></div>
+                <div class="loc-item dest-item">
+                    <div class="loc-badge-row">
+                        <span class="loc-pill dest">🔒 DESTINATION</span>
+                        <span class="loc-action-hint">✋ Drag pin to move</span>
+                    </div>
+                    <div id="destFullAddress" class="loc-full-text">Fetching exact address...</div>
+                </div>
+            </div>
+
+            <!-- Time Scrubber -->
+            <div class="card time-card">
+                <div class="time-header">
+                    <label for="timeSlider">Departure Time Scrubber:</label>
+                    <span id="timeDisplay" class="time-badge">11:00 PM</span>
+                </div>
+                <input type="range" id="timeSlider" min="0" max="23" value="23" step="1">
+                <div class="time-labels">
+                    <span>Morning (6 AM)</span>
+                    <span>Sunset (6 PM)</span>
+                    <span>Night (11 PM)</span>
+                </div>
+                <p class="time-hint-desc">🌙 <i>At night (8 PM - 5 AM), route scoring factors in street lighting coverage and open facilities.</i></p>
+            </div>
+
+            <!-- 🛣️ MULTI-ROUTE COMPARISON (Safest vs Fastest vs Normal) -->
+            <div class="card route-comparison-card">
+                <div class="comparison-header">
+                    <span class="comparison-title">🗺️ Select Road Route:</span>
+                    <span class="comparison-sub">Authoritative Road Network</span>
+                </div>
+                <div id="routeComparisonContainer" class="route-options-list">
+                    <div class="loading-routes-msg">Calculating road routes...</div>
+                </div>
+            </div>
+
+            <!-- Route Info Card -->
+            <div id="routeInfoCard" class="card route-card">
+                <div class="card-status safe">
+                    <span class="status-dot"></span>
+                    <span id="routeStatusText">Recommended Safe Road Corridor</span>
+                </div>
+                <h3 id="routeTitle">Safe Road Corridor</h3>
+                <p id="routeDescription">
+                    Road corridor with recorded street lighting & nearby safety facilities.
+                </p>
+                <div class="route-stats">
+                    <div class="stat">
+                        <span class="stat-label">Estimated Time</span>
+                        <span id="statTime" class="stat-value">-- min</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Safety Index</span>
+                        <span id="statSafety" class="stat-value text-green">--/100</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Nearby Havens</span>
+                        <span id="statHavenCount" class="stat-value">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🛡️ PRE-TRIP ROUTE SAFETY AUDIT & CIRCULAR SHIELD GAUGE -->
+            <div id="safetyAuditCard" class="card safety-audit-card">
+                <div class="audit-header">
+                    <div class="audit-title-wrap">
+                        <span class="audit-icon">🛡️</span>
+                        <div>
+                            <h4>Pre-Trip Route Safety Audit</h4>
+                            <span class="audit-sub">Data-Backed Risk & Support Evaluation</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="audit-body">
+                    <!-- Circular SVG Gauge (Respects reduced-motion) -->
+                    <div class="audit-gauge-wrap">
+                        <svg class="shield-gauge-svg" viewBox="0 0 100 100" aria-label="Safety Score Gauge">
+                            <circle class="gauge-bg" cx="50" cy="50" r="40" />
+                            <circle id="gaugeProgressCircle" class="gauge-progress" cx="50" cy="50" r="40" stroke-dasharray="251.32" stroke-dashoffset="251.32" />
+                        </svg>
+                        <div class="gauge-inner-info">
+                            <span id="gaugeScoreVal" class="gauge-number">--</span>
+                            <span class="gauge-label">SAFETY INDEX</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Truthful Checklist (Requirement 8) -->
+                    <div id="auditChecklist" class="audit-checklist">
+                        <div class="audit-check-item muted"><span>Calculating safety checklist...</span></div>
+                    </div>
+                </div>
+
+                <!-- Detour Explanation (Requirement 10) -->
+                <div id="auditDetourNotice" class="audit-detour-notice" style="display:none;"></div>
+
+                <!-- Truthful Factor Explanation (Requirement 9) -->
+                <div id="auditFactorExplanation" class="audit-factor-explanation">
+                    Score uses available route lighting data, nearby safety facilities, recent user reports, time of day, and active hazards.
+                </div>
+
+                <div class="audit-footer">
+                    <button class="btn-audit-report" data-action="open-share-trip">
+                        📤 Share Pre-Trip Safety Summary
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Full-screen Map Canvas -->
+        <main id="map" role="region" aria-label="Navigation Map"></main>
+    </div>
+
+    <!-- 🚨 SOS EMERGENCY MODAL -->
+    <div id="sosModal" class="sos-modal-overlay">
+        <div class="sos-modal-content">
+            <div class="sos-header">
+                <span class="sos-badge-icon">🚨</span>
+                <h2>EMERGENCY OPTIONS</h2>
+                <p class="sos-sub">Direct Emergency Access & Coordinate Sharing</p>
+            </div>
+
+            <!-- 5-Second Countdown Container -->
+            <div id="sosCountdownContainer" class="sos-countdown-wrap">
+                <div class="sos-countdown-circle">
+                    <span id="sosCountdownVal">5</span>
+                </div>
+                <p class="sos-countdown-text">Opening emergency options. Tap Cancel to dismiss.</p>
+                <button class="btn-sos-cancel" data-action="cancel-sos">✖ CANCEL</button>
+            </div>
+
+            <!-- Active Emergency Action Buttons (Truthful, Requirement 25 & 26) -->
+            <div id="sosActionButtons" class="sos-actions-wrap" style="display:none;">
+                <div class="sos-urgent-banner">
+                    🚨 EMERGENCY MODE ACTIVE: Use options below to contact help
+                </div>
+                <div class="sos-action-grid">
+                    <a href="tel:112" class="btn-emergency-call red">
+                        📞 CALL 112 (POLICE / HELPLINE)
+                    </a>
+                    <a id="btnSosOfflineSMS" href="sms:112" class="btn-emergency-call amber">
+                        📱 SEND OFFLINE GSM SMS (112)
+                    </a>
+                    <a id="btnSosOfflineContactSMS" href="sms:?body=EMERGENCY" class="btn-emergency-call amber">
+                        📱 SMS GUARDIAN (OFFLINE GSM)
+                    </a>
+                    <button class="btn-emergency-call purple" data-action="escape-haven-and-cancel-sos">
+                        🏃 SPRINT TO NEAREST SAFE HAVEN
+                    </button>
+                    <a href="tel:108" class="btn-emergency-call blue">
+                        🚑 CALL 108 (AMBULANCE)
+                    </a>
+                    <button class="btn-emergency-call green" data-action="copy-emergency-sms">
+                        📋 Copy Location & WhatsApp Ticket
+                    </button>
+                </div>
+
+                <div class="sos-nearest-section">
+                    <h4>📍 Nearest Emergency Facilities (Sorted by GPS Distance):</h4>
+                    <div id="sosNearestPolice" class="facility-card">Locating nearest police station...</div>
+                    <div id="sosNearestHospital" class="facility-card">Locating nearest hospital...</div>
+                </div>
+
+                <button class="btn-sos-close" data-action="cancel-sos">Close Emergency Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ⚠️ STAGED OVERDUE PROTOCOL MODAL (Requirement 14) -->
+    <div id="overdueAlertModal" class="sos-modal-overlay">
+        <div class="sos-modal-content overdue-modal-box">
+            <div class="sos-header">
+                <span class="sos-badge-icon">⏱️</span>
+                <h2 style="color:#ef4444;">ARRIVAL CHECK-IN OVERDUE</h2>
+                <p class="sos-sub">Guardian Sentinel Safe Window Expired</p>
+            </div>
+
+            <!-- Stage 1 & 2: Countdown Warning -->
+            <div id="overdueStageCountdown" class="sos-countdown-wrap">
+                <div class="sos-countdown-circle overdue">
+                    <span id="overdueCountdownVal">20</span>
+                </div>
+                <p class="sos-countdown-text">
+                    Your arrival deadline has expired. Please confirm your safety or choose an emergency option below.
+                </p>
+                <div class="overdue-btn-row">
+                    <button class="btn-overdue-safe" data-action="cancel-overdue">
+                        ✅ I AM SAFE (Confirm Arrival)
+                    </button>
+                    <button class="btn-overdue-sos" data-action="overdue-stage3">
+                        🚨 Emergency Options
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stage 3: Explicit Emergency Action Options (Requirement 14) -->
+            <div id="overdueStageActions" class="sos-actions-wrap" style="display:none;">
+                <p class="overdue-stage3-text">Select an action:</p>
+                <div class="overdue-action-grid">
+                    <button class="btn-overdue-safe full" data-action="cancel-overdue">
+                        ✅ I Am Safe (Dismiss Alarm)
+                    </button>
+                    <a href="tel:112" class="btn-emergency-call red">
+                        📞 Call 112
+                    </a>
+                    <button class="btn-emergency-call green" data-action="open-share-trip">
+                        📤 Share Current Location
+                    </button>
+                    <button class="btn-emergency-call blue" data-action="execute-emergency-protocol">
+                        🚨 Open Emergency Menu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ SAFE ARRIVAL CHECK-IN MODAL (Requirement 13) -->
+    <div id="checkInModal" class="share-modal-overlay">
+        <div class="share-modal-content checkin-modal-content">
+            <div class="share-header">
+                <h3>✅ Arrival Confirmation</h3>
+                <button class="btn-modal-close" data-action="dismiss-arrival">✕</button>
+            </div>
+            <div class="checkin-body">
+                <div class="checkin-badge-icon">🏠</div>
+                <h4>Have you arrived safely at your destination?</h4>
+                <p class="checkin-desc">Confirming arrival records your safe return and ends Guardian monitoring.</p>
+                <div class="checkin-btn-stack">
+                    <button class="btn-checkin-confirm" data-action="checkin-safely">
+                        🟢 YES, I HAVE ARRIVED SAFELY
+                    </button>
+                    <button class="btn-checkin-cancel" data-action="dismiss-arrival">
+                        Still Walking (Keep Monitoring)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ⚠️ REPORT LIVE CONDITION / HAZARD MODAL (Requirement 31 & 32) -->
+    <div id="reportHazardModal" class="share-modal-overlay">
+        <div class="share-modal-content">
+            <div class="share-header">
+                <h3>⚠️ Report Road Condition</h3>
+                <button class="btn-modal-close" data-action="close-report">✕</button>
+            </div>
+            <p class="share-desc">Submit an anonymous safety condition at your current GPS location to help others:</p>
+            <div class="input-group">
+                <label>Condition Type:</label>
+                <select id="reportTypeSelect" class="form-select">
+                    <option value="hazard">⚠️ Road Hazard / Obstruction</option>
+                    <option value="lighting_out">💡 Streetlights Out / Dark Stretch</option>
+                    <option value="incident">🚨 Suspicious Activity</option>
+                    <option value="crowd_deserted">👥 Deserted / Isolated Corridor</option>
+                    <option value="crowd_active">🟢 Active Pedestrian Area</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Description (Optional):</label>
+                <input type="text" id="reportDescInput" placeholder="e.g. 2 broken lampposts near canal alley..." class="form-input">
+            </div>
+            <button class="btn-submit-report" data-action="submit-report">
+                📢 Broadcast Report
+            </button>
+        </div>
+    </div>
+
+    <!-- 👤 SAFETY PROFILE & CONTACTS MODAL -->
+    <div id="authModal" class="share-modal-overlay">
+        <div class="share-modal-content auth-modal-box">
+            <div class="share-header">
+                <h3 id="authModalTitle">👤 Your Safety Profile</h3>
+                <button class="btn-modal-close" data-action="close-auth">✕</button>
+            </div>
+            <form id="authForm">
+                <p class="share-desc">Configure your emergency contacts and personal details for safety alerts and SOS.</p>
+                <div class="input-group">
+                    <label for="authUserName">Your Full Name:</label>
+                    <input type="text" id="authUserName" class="form-input" placeholder="e.g. Sanchi" required autocomplete="name">
+                </div>
+                <div class="input-group">
+                    <label for="authUserPhone">Your Mobile Number (for SOS & alerts):</label>
+                    <input type="tel" id="authUserPhone" class="form-input" placeholder="+91 98765 43210" required autocomplete="tel">
+                </div>
+                <div class="input-group">
+                    <label for="authContactPhone">Primary Emergency Contact (Parent / Guardian):</label>
+                    <input type="tel" id="authContactPhone" class="form-input" placeholder="+91 98220 41290" required>
+                </div>
+                <div class="input-group">
+                    <label for="authContactName">Emergency Contact Name:</label>
+                    <input type="text" id="authContactName" class="form-input" placeholder="e.g. Dad (Home)">
+                </div>
+                <button type="submit" class="btn-submit-report" style="background:#10b981;margin-top:10px;">
+                    ✅ Save Profile & Contacts
+                </button>
+                <div id="authProfileDetails" style="display:none;margin-top:12px;">
+                    <button type="button" class="btn-overdue-safe full" style="background:#ef4444;" data-action="logout">
+                        🗑️ Reset Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 📤 SHARE MY TRIP MODAL -->
+    <div id="shareTripModal" class="share-modal-overlay">
+        <div class="share-modal-content">
+            <div class="share-header">
+                <h3>📤 Share Live Walking Route</h3>
+                <button class="btn-modal-close" data-action="close-share-trip">✕</button>
+            </div>
+            <p class="share-desc">Send your location and route progress to trusted contacts:</p>
+            <textarea id="shareTripTextInput" class="share-textarea" readonly></textarea>
+            <div class="share-btn-row">
+                <a id="btnShareWhatsApp" target="_blank" class="btn-share wa">💬 WhatsApp</a>
+                <a id="btnShareSMS" class="btn-share sms">📱 SMS</a>
+                <button class="btn-share copy" data-action="copy-emergency-sms">📋 Copy Text</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📞 REALISTIC FAKE CALL SIMULATOR MODAL (Requirement 21) -->
+    <div id="fakeCallModal" class="fake-call-overlay">
+        <div class="fake-call-phone-frame">
+            <div id="fakeCallIncomingScreen" class="fake-screen incoming">
+                <div class="caller-meta">
+                    <div class="caller-avatar-circle"><span>👨‍🦳</span></div>
+                    <h2 id="fakeCallerName">Dad (Home)</h2>
+                    <p class="caller-phone-num">+91 98220 41290</p>
+                    <span class="caller-status-text">Incoming Call (Fake Call Simulator)...</span>
+                </div>
+                <div class="call-controls-incoming">
+                    <button class="btn-call-action decline" data-action="end-fake-call" title="Decline Call">
+                        <span class="call-icon">✕</span>
+                        <small>Decline</small>
+                    </button>
+                    <button class="btn-call-action accept" data-action="accept-fake-call" title="Answer Call">
+                        <span class="call-icon">📞</span>
+                        <small>Accept</small>
+                    </button>
+                </div>
+            </div>
+
+            <div id="fakeCallActiveScreen" class="fake-screen active" style="display:none;">
+                <div class="caller-meta">
+                    <div class="caller-avatar-circle small"><span>👨‍🦳</span></div>
+                    <h2>Dad (Home)</h2>
+                    <span id="fakeCallTimer" class="caller-timer">00:00</span>
+                </div>
+                <div class="active-call-keypad-mock">
+                    <div class="keypad-tool"><span>🔇</span><small>Mute</small></div>
+                    <div class="keypad-tool active"><span>🔊</span><small>Speaker</small></div>
+                    <div class="keypad-tool"><span>➕</span><small>Add Call</small></div>
+                    <div class="keypad-tool"><span>⌨️</span><small>Keypad</small></div>
+                </div>
+                <div class="call-controls-active">
+                    <button class="btn-call-action end" data-action="end-fake-call" title="End Call">
+                        <span class="call-icon">📞</span>
+                        <small>End Call</small>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔦 RESTRAINED EMERGENCY VISUAL BEACON (Requirement 22) -->
+    <div id="emergencyStrobeOverlay" class="emergency-strobe-overlay" data-action="toggle-strobe">
+        <div class="strobe-hint">🔦 VISUAL EMERGENCY BEACON ACTIVE &bull; TAP ANYWHERE TO TURN OFF</div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Socket.io Client -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- SafeStep Modular Client Scripts -->
+    <script src="/js/voice.js?v=<%= Date.now() %>"></script>
+    <script src="/js/routing.js?v=<%= Date.now() %>"></script>
+    <script src="/js/navigation.js?v=<%= Date.now() %>"></script>
+    <script src="/js/defense.js?v=<%= Date.now() %>"></script>
+    <script src="/js/guardian.js?v=<%= Date.now() %>"></script>
+    <script src="/js/safety.js?v=<%= Date.now() %>"></script>
+    <script src="/js/sos.js?v=<%= Date.now() %>"></script>
+    <script src="/js/app.js?v=<%= Date.now() %>"></script>
+</body>
+</html>

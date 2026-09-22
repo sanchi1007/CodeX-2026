@@ -1,0 +1,110 @@
+[
+  {
+    "id": "poi-1",
+    "name": "Wadi Police Assistance Chowki",
+    "type": "police",
+    "coordinates": [19.18920, 77.27980],
+    "address": "Canal Road Junction, Wadi Bk, Nanded",
+    "phone": "02462-234567",
+    "isOpen24x7": true,
+    "description": "Police Patrol Desk & Emergency Aid (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-2",
+    "name": "Shivaji Nagar Police Station",
+    "type": "police",
+    "coordinates": [19.18200, 77.28850],
+    "address": "Shivaji Nagar Main Road, Nanded",
+    "phone": "02462-251100",
+    "isOpen24x7": true,
+    "description": "Zonal Police Station (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-3",
+    "name": "Ashwini Emergency Hospital & Trauma",
+    "type": "hospital",
+    "coordinates": [19.18680, 77.27620],
+    "address": "DMart Link Road, Wadi Bk, Nanded",
+    "phone": "02462-262233",
+    "isOpen24x7": true,
+    "description": "Casualty & Emergency Medical Care (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-4",
+    "name": "Dr. SC Govt Medical College Hospital",
+    "type": "hospital",
+    "coordinates": [19.17850, 77.29100],
+    "address": "Vazirabad, Nanded",
+    "phone": "02462-248100",
+    "isOpen24x7": true,
+    "description": "Government Hospital & Emergency Response (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-5",
+    "name": "Apollo 24/7 Pharmacy & Chemist",
+    "type": "pharmacy",
+    "coordinates": [19.18520, 77.27550],
+    "address": "DMart Commercial Stretch, Wadi Bk, Nanded",
+    "phone": "02462-288990",
+    "isOpen24x7": true,
+    "description": "All-night open pharmacy (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-6",
+    "name": "Sanjeevani Day-Night Medical",
+    "type": "pharmacy",
+    "coordinates": [19.19080, 77.28250],
+    "address": "Canal Road (Near Sambodhi Society), Nanded",
+    "phone": "02462-277112",
+    "isOpen24x7": true,
+    "description": "Late-night medicine dispensary (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-7",
+    "name": "DMart Supermarket Safe Haven Plaza",
+    "type": "safe_haven",
+    "coordinates": [19.18445, 77.27500],
+    "address": "DMart Road, Wadi Bk, Nanded",
+    "phone": "1800-890-1222",
+    "isOpen24x7": false,
+    "description": "Active retail hub with private security staff (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-8",
+    "name": "IOCL 24/7 Fuel Station & Convenience",
+    "type": "safe_haven",
+    "coordinates": [19.19230, 77.28050],
+    "address": "Main Wadi Bypass Road, Nanded",
+    "phone": "02462-244556",
+    "isOpen24x7": true,
+    "description": "Floodlit petrol station with security staff (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-9",
+    "name": "Municipal High-Mast LED Mast #1",
+    "type": "lighting",
+    "coordinates": [19.19150, 77.28150],
+    "address": "Canal Road & Bypass Crossing, Nanded",
+    "isOpen24x7": true,
+    "description": "High-intensity municipal LED mast (Demo Data)",
+    "source": "demo"
+  },
+  {
+    "id": "poi-10",
+    "name": "DMart Commercial LED Mast #2",
+    "type": "lighting",
+    "coordinates": [19.18500, 77.27520],
+    "address": "DMart Main Square, Nanded",
+    "isOpen24x7": true,
+    "description": "Commercial lighting array (Demo Data)",
+    "source": "demo"
+  }
+]
