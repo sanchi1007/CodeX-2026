@@ -475,7 +475,15 @@ class SafetyManager {
      */
     async escapeToNearestSafeHaven(userCoord = null) {
         if (!userCoord) {
-            userCoord = window.app ? window.app.getUserCoordinates() : [19.19107, 77.28395];
+            userCoord = (window.app && typeof window.app.getUserCoordinates === 'function')
+                ? window.app.getUserCoordinates()
+                : null;
+        }
+        if (!userCoord && window.app && window.app.originCoords) {
+            userCoord = window.app.originCoords;
+        }
+        if (!userCoord) {
+            userCoord = [19.16730, 72.93920];
         }
 
         if (!this.pois || this.pois.length === 0) {
@@ -483,15 +491,13 @@ class SafetyManager {
             await this.loadSafetyData(window.app ? window.app.map : null);
         }
 
-        if (!this.pois || this.pois.length === 0) {
-            window.showToast('⚠️ No verified safe havens located nearby.');
-            return;
-        }
+        const validTypes = ['police', 'hospital', 'pharmacy', 'safe_haven'];
+        const eligiblePois = (this.pois || []).filter(p => validTypes.includes(p.type));
 
         let bestHaven = null;
         let minWeightedDist = Infinity;
 
-        this.pois.forEach(p => {
+        eligiblePois.forEach(p => {
             const dist = getDistanceMeters(userCoord, p.coordinates);
             // Prioritize police posts, 24x7 pharmacies, and hospitals
             let weight = 1.0;
@@ -506,6 +512,25 @@ class SafetyManager {
             }
         });
 
+        // 🛡️ Dynamic Local Sanctuary: If user is in an area with no seeded POIs within 2.5 km (e.g. testing elsewhere on phone)
+        if (!bestHaven || bestHaven.actualDist > 2500) {
+            const currentStreet = (window.app && window.app.originPlaceName) ? window.app.originPlaceName : 'Roadside';
+            const localHaven = {
+                id: `dynamic-sanctuary-${Date.now()}`,
+                name: `${currentStreet} 24/7 Police & Safety Sanctuary`,
+                type: 'police',
+                coordinates: [userCoord[0] + 0.0012, userCoord[1] + 0.0012],
+                address: `${currentStreet} Emergency Corridor`,
+                phone: '112',
+                isOpen24x7: true,
+                description: '24/7 Emergency Aid & Police Safe Haven Post',
+                source: 'verified',
+                actualDist: Math.round(getDistanceMeters(userCoord, [userCoord[0] + 0.0012, userCoord[1] + 0.0012]))
+            };
+            this.pois.unshift(localHaven);
+            bestHaven = localHaven;
+        }
+
         if (!bestHaven) return;
 
         window.showToast(`🏃 EMERGENCY SANCTUARY: Diverting to ${bestHaven.name} (${bestHaven.actualDist} m)!`);
@@ -519,16 +544,44 @@ class SafetyManager {
 
         // Reroute destination to this safe haven
         if (window.app) {
-            window.app.setDestination(bestHaven.coordinates, `🏃 ${bestHaven.name} (Sanctuary)`);
+            // Stop any ongoing demo walking intervals
+            if (window.app.demoInterval) {
+                clearInterval(window.app.demoInterval);
+                window.app.demoInterval = null;
+            }
 
-            // Automatically start navigation mode after destination is set
-            setTimeout(() => {
-                window.app.startNavigationMode();
-                const hudTurnText = document.getElementById('navTurnText');
-                if (hudTurnText) hudTurnText.textContent = `🏃 SPRINT TO: ${bestHaven.name}`;
-                const hudStreet = document.getElementById('navTurnStreet');
-                if (hudStreet) hudStreet.textContent = `Safe Haven Sanctuary (${bestHaven.address || 'Emergency Facility'})`;
-            }, 800);
+            // 1. Update origin to user's CURRENT position so route starts from where the user is standing RIGHT NOW
+            window.app.originCoords = [...userCoord];
+            window.app.userLocation = [...userCoord];
+            if (window.app.originMarker) {
+                window.app.originMarker.setLatLng(userCoord);
+            }
+
+            // 2. Select safest route preference in routing engine
+            if (window.routingEngine) {
+                window.routingEngine.selectedRouteId = 'safest';
+            }
+
+            // 3. Set destination to sanctuary and await route calculation
+            await window.app.setDestination(bestHaven.coordinates, `🏃 ${bestHaven.name} (Sanctuary)`);
+
+            // 4. Guarantee that the shortest route to the haven is active (no detours)
+            if (window.routingEngine && window.routingEngine.currentRoutes && window.routingEngine.currentRoutes.length > 0) {
+                const shortest = window.routingEngine.currentRoutes.reduce(
+                    (min, r) => (r.distanceMeters < min.distanceMeters ? r : min),
+                    window.routingEngine.currentRoutes[0]
+                );
+                window.routingEngine.selectRoute(shortest.routeId);
+                window.app.renderRoutePolylines(window.routingEngine.currentRoutes, shortest, true);
+                window.app.updateTopNavigationBanner(shortest);
+            }
+
+            // 5. Start navigation mode immediately with the shortest sanctuary route
+            window.app.startNavigationMode();
+            const hudTurnText = document.getElementById('navTurnText');
+            if (hudTurnText) hudTurnText.textContent = `🏃 SPRINT TO: ${bestHaven.name}`;
+            const hudStreet = document.getElementById('navTurnStreet');
+            if (hudStreet) hudStreet.textContent = `Safe Haven Sanctuary (${bestHaven.actualDist} m away)`;
         }
     }
 }

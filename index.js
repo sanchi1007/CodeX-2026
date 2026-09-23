@@ -1055,22 +1055,28 @@ app.get('/api/route/road', async (req, res) => {
         const primaryData = await fetchOSRMRoute(primaryWalkUrl, 5000);
         let osrmRoutes = (primaryData && primaryData.routes) ? [...primaryData.routes] : [];
 
+        const clientDestName = req.query.destName ? String(req.query.destName).trim() : '';
+        const clientOriginName = req.query.originName ? String(req.query.originName).trim() : '';
+        const directMeters = getDistanceMeters([oLat, oLng], [dLat, dLng]);
+        const isSanctuary = clientDestName.toLowerCase().includes('sanctuary') || clientDestName.toLowerCase().includes('safe haven');
+        const isShortTrip = directMeters < 500 || isSanctuary;
+
         // 2. Guarantee that Alternative / Unsafe route follows real municipal roads (not cutting through buildings)
-        if (osrmRoutes.length < 2) {
+        if (osrmRoutes.length < 2 && !isShortTrip) {
             // Strategy A: Try driving profile for genuine road geometry along vehicle corridors
             const driveUrl = `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson&steps=true`;
             const driveData = await fetchOSRMRoute(driveUrl, 4000);
             if (driveData && driveData.routes && driveData.routes.length > 0) {
                 const driveRoute = driveData.routes[0];
                 const isDistinct = osrmRoutes.length === 0 || Math.abs(driveRoute.distance - osrmRoutes[0].distance) > 40;
-                if (isDistinct) {
+                if (isDistinct && driveRoute.distance <= directMeters * 2.5) {
                     osrmRoutes.push(driveRoute);
                 }
             }
         }
 
-        // Strategy B: If still fewer than 2 routes, snap an intermediate via-point to an adjacent real road
-        if (osrmRoutes.length < 2) {
+        // Strategy B: If still fewer than 2 routes, snap an intermediate via-point to an adjacent real road (only for standard trips >= 500m)
+        if (osrmRoutes.length < 2 && !isShortTrip) {
             const midLat = (oLat + dLat) / 2;
             const midLng = (oLng + dLng) / 2;
             const dLatDiff = dLat - oLat;
@@ -1091,8 +1097,8 @@ app.get('/api/route/road', async (req, res) => {
             }
         }
 
-        // Strategy C: If still fewer than 3 routes, get 3rd route via opposite lateral road waypoint
-        if (osrmRoutes.length < 3 && osrmRoutes.length >= 1) {
+        // Strategy C: If still fewer than 3 routes, get 3rd route via opposite lateral road waypoint (only for standard trips >= 500m)
+        if (osrmRoutes.length < 3 && osrmRoutes.length >= 1 && !isShortTrip) {
             const midLat = (oLat + dLat) / 2;
             const midLng = (oLng + dLng) / 2;
             const dLatDiff = dLat - oLat;
@@ -1112,8 +1118,12 @@ app.get('/api/route/road', async (req, res) => {
             }
         }
 
-        const clientDestName = req.query.destName ? String(req.query.destName).trim() : '';
-        const clientOriginName = req.query.originName ? String(req.query.originName).trim() : '';
+        // For short sanctuary sprints (< 500m), ensure routes are direct without artificial detours
+        if (isShortTrip && osrmRoutes.length > 0) {
+            while (osrmRoutes.length < 3) {
+                osrmRoutes.push(osrmRoutes[0]);
+            }
+        }
 
         // Helper to extract real street names from all legs of an OSRM route
         const extractStreetNames = (osrmRoute) => {
@@ -1200,11 +1210,15 @@ app.get('/api/route/road', async (req, res) => {
                 null
             );
 
-            const detourMins = Math.max(0, r1.durationMinutes - r2.durationMinutes);
-            if (detourMins > 0) {
-                r1.detourReason = `Safer route adds ${detourMins} min: Higher lighting coverage (${r1.lightingCoverage.percentage}% vs ${r2.lightingCoverage.percentage}%) and nearby roadside police & medical havens.`;
+            if (isSanctuary) {
+                r1.detourReason = `Direct Emergency Sanctuary Corridor: Sprint immediately to ${clientDestName || 'Safe Haven'}.`;
             } else {
-                r1.detourReason = `Recommended safe road corridor: Continuous lighting coverage (${r1.lightingCoverage.percentage}%) and ${r1.safeHavenCount} roadside safety havens.`;
+                const detourMins = Math.max(0, r1.durationMinutes - r2.durationMinutes);
+                if (detourMins > 0) {
+                    r1.detourReason = `Safer route adds ${detourMins} min: Higher lighting coverage (${r1.lightingCoverage.percentage}% vs ${r2.lightingCoverage.percentage}%) and nearby roadside police & medical havens.`;
+                } else {
+                    r1.detourReason = `Recommended safe road corridor: Continuous lighting coverage (${r1.lightingCoverage.percentage}%) and ${r1.safeHavenCount} roadside safety havens.`;
+                }
             }
 
             // r3: Standard Route
