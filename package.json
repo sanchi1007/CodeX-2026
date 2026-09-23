@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "seed": "node seed.js",
     "test": "node tests/security_fixes.test.js && node tests/integration.test.js"
   },
   "keywords": [],

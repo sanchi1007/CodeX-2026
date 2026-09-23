@@ -261,6 +261,12 @@ if (process.env.FRONTEND_URL) {
 if (process.env.ALLOWED_ORIGINS) {
     process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean).forEach(o => allowedOrigins.add(o));
 }
+if (process.env.RENDER_EXTERNAL_URL) {
+    allowedOrigins.add(process.env.RENDER_EXTERNAL_URL);
+}
+if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    allowedOrigins.add(`https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+}
 
 const io = new Server(server, {
     cors: {
