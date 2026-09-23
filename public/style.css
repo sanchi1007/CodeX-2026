@@ -89,15 +89,28 @@ body, html {
     transition: all 0.3s ease;
 }
 
-@media (max-width: 900px) {
-    .top-nav-banner {
-        top: auto;
-        bottom: 20px;
-        right: 20px;
-        left: 20px;
-        max-width: none;
-        min-width: auto;
-    }
+.nav-banner-main {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.btn-banner-options {
+    display: none;
+}
+
+.btn-mobile-toggle,
+.btn-mobile-pill-reopen {
+    display: none;
 }
 
 .top-nav-banner.safe {
@@ -1676,9 +1689,21 @@ input[type="range"] {
 
 @media (max-width: 768px) {
     .guardian-sentinel-ribbon {
-        font-size: 0.65rem;
-        gap: 8px;
-        padding: 0 8px;
+        height: 32px !important;
+        font-size: 0.68rem !important;
+        gap: 10px !important;
+        padding: 0 10px !important;
+        justify-content: flex-start !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .guardian-sentinel-ribbon::-webkit-scrollbar {
+        display: none;
+    }
+    .guardian-ribbon-item {
+        flex-shrink: 0 !important;
     }
 }
 
@@ -1731,18 +1756,20 @@ input[type="range"] {
     animation: pulse 1s infinite alternate;
 }
 
-/* Offset panels below Guardian Ribbon */
-.control-panel {
-    top: 34px !important;
-    height: calc(100% - 34px) !important;
-}
+/* Offset panels below Guardian Ribbon (Desktop only) */
+@media (min-width: 769px) {
+    .control-panel {
+        top: 34px !important;
+        height: calc(100% - 34px) !important;
+    }
 
-.top-nav-banner {
-    top: 46px !important;
-}
+    .top-nav-banner {
+        top: 46px !important;
+    }
 
-.navigation-hud-top {
-    top: 44px !important;
+    .navigation-hud-top {
+        top: 44px !important;
+    }
 }
 
 /* 2. Header Defense Action Buttons */
@@ -2780,48 +2807,319 @@ input[type="text"].form-input:focus {
     background: rgba(56, 189, 248, 0.5);
 }
 
-/* Mobile Responsiveness Improvements */
-@media (max-width: 640px) {
+/* ==========================================================================
+   📱 COMPREHENSIVE MOBILE RESPONSIVE SUITE (< 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* 1. Map & Leaflet Controls */
+    .leaflet-top {
+        top: 38px !important;
+    }
+    .leaflet-bottom {
+        bottom: 10px !important;
+    }
+    .leaflet-control-zoom {
+        border: none !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+    }
+    .leaflet-control-zoom a {
+        width: 34px !important;
+        height: 34px !important;
+        line-height: 34px !important;
+        background: rgba(15, 23, 42, 0.9) !important;
+        color: #38bdf8 !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+
+    /* 2. Control Panel Drawer */
     .control-panel {
+        top: 38px !important;
+        bottom: 12px !important;
         left: 10px !important;
         right: 10px !important;
         width: auto !important;
         max-width: calc(100vw - 20px) !important;
+        height: auto !important;
+        max-height: calc(100vh - 50px) !important;
         padding: 14px !important;
+        border-radius: 18px !important;
+        box-shadow: 0 10px 35px rgba(0, 0, 0, 0.8) !important;
+        transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease !important;
+        z-index: 1550 !important;
+    }
+
+    .control-panel.mobile-minimized {
+        transform: translateY(115%) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    .btn-mobile-toggle {
+        display: inline-flex !important;
+        align-items: center;
+        gap: 4px;
+        background: rgba(56, 189, 248, 0.18);
+        border: 1px solid #38bdf8;
+        color: #38bdf8;
+        padding: 5px 9px;
+        border-radius: 8px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .btn-mobile-toggle:active {
+        transform: scale(0.95);
+    }
+
+    .btn-mobile-pill-reopen {
+        display: inline-flex !important;
+        position: fixed;
+        top: 40px;
+        left: 12px;
+        z-index: 1500;
+        background: rgba(15, 23, 42, 0.94);
+        backdrop-filter: blur(12px);
+        border: 1px solid #38bdf8;
+        color: #38bdf8;
+        padding: 7px 13px;
+        border-radius: 20px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+        cursor: pointer;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.25s ease;
+    }
+    .btn-mobile-pill-reopen.hidden {
+        display: none !important;
+    }
+
+    /* 3. Top Navigation Banner (Overview Mode) */
+    .top-nav-banner {
+        position: fixed !important;
+        top: auto !important;
+        bottom: 12px !important;
+        left: 10px !important;
+        right: 10px !important;
+        width: auto !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        padding: 10px 12px !important;
         border-radius: 16px !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85) !important;
+        z-index: 1520 !important;
     }
 
+    .top-nav-banner.nav-hidden {
+        transform: translateY(140%) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    .nav-banner-main {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+
+    .nav-icon-col {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 1.25rem !important;
+        border-radius: 10px !important;
+        flex-shrink: 0 !important;
+    }
+
+    #navRouteName {
+        font-size: 0.85rem !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 180px !important;
+    }
+
+    .nav-primary-row {
+        gap: 6px !important;
+    }
+
+    .nav-badge {
+        font-size: 0.6rem !important;
+        padding: 2px 5px !important;
+    }
+
+    .nav-secondary-row {
+        font-size: 0.7rem !important;
+        gap: 4px !important;
+    }
+
+    #navSafetyDesc {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: 150px !important;
+    }
+
+    .nav-banner-actions {
+        display: flex !important;
+        width: 100% !important;
+        gap: 6px !important;
+    }
+
+    .btn-walk {
+        flex: 1.8 !important;
+        padding: 9px 8px !important;
+        font-size: 0.8rem !important;
+        font-weight: 800 !important;
+        border-radius: 10px !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+
+    .btn-haven-top {
+        flex: 1.2 !important;
+        padding: 9px 6px !important;
+        font-size: 0.74rem !important;
+        border-radius: 10px !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+
+    .btn-banner-options {
+        display: inline-flex !important;
+        flex: 1 !important;
+        background: rgba(255, 255, 255, 0.09) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: #f1f5f9 !important;
+        padding: 9px 6px !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        font-size: 0.74rem !important;
+        cursor: pointer !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* 4. Floating SOS Button */
     .floating-sos-btn {
-        bottom: 20px;
-        right: 20px;
-        width: 60px;
-        height: 60px;
+        bottom: 124px !important;
+        right: 14px !important;
+        width: 56px !important;
+        height: 56px !important;
+        z-index: 1530 !important;
     }
-
+    .floating-sos-btn.nav-hidden {
+        display: none !important;
+    }
     .floating-sos-btn .sos-icon {
-        font-size: 1.2rem;
+        font-size: 1.15rem !important;
+    }
+    .floating-sos-btn .sos-label {
+        font-size: 0.56rem !important;
     }
 
-    .floating-sos-btn .sos-label {
-        font-size: 0.58rem;
+    /* When banner is hidden, park SOS at bottom right */
+    .top-nav-banner.nav-hidden ~ .floating-sos-btn {
+        bottom: 20px !important;
+    }
+
+    /* 5. Navigation Mode HUD (Active Turn-By-Turn) */
+    .navigation-hud-top {
+        top: 38px !important;
+        width: calc(100% - 20px) !important;
+        max-width: 480px !important;
+        padding: 8px 12px !important;
+        border-radius: 14px !important;
+        gap: 10px !important;
+    }
+
+    .hud-icon-box {
+        width: 38px !important;
+        height: 38px !important;
+        font-size: 1.3rem !important;
+        border-radius: 10px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .hud-instruction-row {
+        font-size: 0.88rem !important;
+        line-height: 1.15 !important;
+    }
+
+    .hud-sub-row {
+        font-size: 0.72rem !important;
+    }
+
+    .btn-hud-sos {
+        padding: 6px 10px !important;
+        font-size: 0.74rem !important;
+        border-radius: 8px !important;
+        flex-shrink: 0 !important;
     }
 
     .navigation-hud-bottom {
-        width: calc(100% - 20px);
-        bottom: 12px;
-        padding: 10px 14px;
+        width: calc(100% - 20px) !important;
+        bottom: 10px !important;
+        padding: 8px 12px !important;
+        border-radius: 16px !important;
+        gap: 8px !important;
     }
 
     .hud-trip-metrics {
-        gap: 8px;
+        gap: 4px !important;
     }
 
     .hud-stat-label {
-        font-size: 0.65rem;
+        font-size: 0.58rem !important;
     }
 
     .hud-stat-val {
-        font-size: 0.85rem;
+        font-size: 0.95rem !important;
+    }
+
+    .hud-stat-sub {
+        font-size: 0.68rem !important;
+    }
+
+    .hud-stat-divider {
+        height: 24px !important;
+    }
+
+    .hud-safety-pill {
+        font-size: 0.65rem !important;
+        padding: 2px 6px !important;
+    }
+
+    .hud-action-controls {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 5px !important;
+        padding-top: 6px !important;
+    }
+
+    .btn-hud-tool,
+    .btn-hud-end {
+        padding: 6px 2px !important;
+        font-size: 0.66rem !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    /* 6. Emergency Quick Bar in sidebar */
+    .emergency-quick-bar {
+        gap: 5px !important;
+    }
+    .quick-action-pill {
+        font-size: 0.7rem !important;
+        padding: 5px 8px !important;
     }
 }
 

@@ -119,34 +119,46 @@
 
         <!-- Top Navigation Banner (Overview Mode) -->
         <div id="topNavBanner" class="top-nav-banner safe">
-            <div class="nav-icon-col">
-                <span id="navDirectionIcon">🚶</span>
-            </div>
-            <div class="nav-info-col">
-                <div class="nav-primary-row">
-                    <span id="navRouteName">Safe Pedestrian Corridor</span>
-                    <span id="navStatusBadge" class="nav-badge safe">🟢 RECOMMENDED ROUTE</span>
+            <div class="nav-banner-main">
+                <div class="nav-icon-col">
+                    <span id="navDirectionIcon">🚶</span>
                 </div>
-                <div class="nav-secondary-row">
-                    <span id="navTime">-- min</span>
-                    <span class="nav-bullet">&bull;</span>
-                    <span id="navDistance">-- m</span>
-                    <span class="nav-bullet">&bull;</span>
-                    <span id="navSafetyDesc">Lighting & Safe Havens along corridor</span>
+                <div class="nav-info-col">
+                    <div class="nav-primary-row">
+                        <span id="navRouteName">Safe Pedestrian Corridor</span>
+                        <span id="navStatusBadge" class="nav-badge safe">🟢 RECOMMENDED ROUTE</span>
+                    </div>
+                    <div class="nav-secondary-row">
+                        <span id="navTime">-- min</span>
+                        <span class="nav-bullet">&bull;</span>
+                        <span id="navDistance">-- m</span>
+                        <span class="nav-bullet">&bull;</span>
+                        <span id="navSafetyDesc">Lighting & Safe Havens along corridor</span>
+                    </div>
                 </div>
             </div>
-            <button id="btnSimulateWalk" class="btn-walk" title="Start road walking navigation">
-                ▶️ Start Walking
-            </button>
-            <button id="btnTopHaven" class="btn-haven-top" data-action="escape-haven" title="Emergency Escape to Nearest Safe Haven Sanctuary">
-                🏃 Safe Haven
-            </button>
+            <div class="nav-banner-actions">
+                <button id="btnSimulateWalk" class="btn-walk" title="Start road walking navigation">
+                    ▶️ Start Walking
+                </button>
+                <button id="btnTopHaven" class="btn-haven-top" data-action="escape-haven" title="Emergency Escape to Nearest Safe Haven Sanctuary">
+                    🏃 Safe Haven
+                </button>
+                <button id="btnTogglePanelFromBanner" class="btn-banner-options" data-action="toggle-mobile-panel" title="Toggle Search & Route Panel">
+                    📋 Options
+                </button>
+            </div>
         </div>
 
         <!-- 🚨 FLOATING SOS EMERGENCY BUTTON -->
         <button id="btnFloatingSOS" class="floating-sos-btn" title="Emergency SOS" aria-label="Open Emergency Menu">
             <span class="sos-icon">🚨</span>
             <span class="sos-label">SOS</span>
+        </button>
+
+        <!-- 🔍 FLOATING MOBILE PILL TO REOPEN PANEL -->
+        <button id="btnMobilePillReopen" class="btn-mobile-pill-reopen hidden" data-action="toggle-mobile-panel" title="Open Routes & Search Panel">
+            🔍 Search & Routes
         </button>
 
         <!-- 🎮 DEMO MODE QUICK CONTROLS BAR -->
@@ -165,6 +177,7 @@
                     <div class="header-right-tools">
                         <span id="gpsStatusBadge" class="gps-badge acquiring">🟡 GPS...</span>
                         <button id="btnUserAuth" class="btn-user-auth" data-action="open-auth" title="Emergency Contacts & Safety Profile">👤 Safety Profile</button>
+                        <button id="btnMobileCollapse" class="btn-mobile-toggle" data-action="toggle-mobile-panel" title="Minimize Panel to View Map" aria-label="Minimize panel">🗺️ Map</button>
                     </div>
                 </div>
                 <p class="tagline">Time-Aware & Truthful Safe Pedestrian Navigation</p>

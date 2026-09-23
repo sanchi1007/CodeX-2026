@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeStep Demo Intro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        }
+
+        body {
+            background-color: #05070d;
+            color: #ffffff;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Subtle ambient glow in background */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, rgba(5, 7, 13, 0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .slide-container {
+            max-width: 1100px;
+            padding: 40px;
+            text-align: center;
+            z-index: 2;
+        }
+
+        /* SLIDE 1: The Hook */
+        #slide1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+
+        .main-question {
+            font-size: 3.2rem;
+            font-weight: 800;
+            line-height: 1.3;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+            text-shadow: 0 0 35px rgba(255, 255, 255, 0.35);
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInQuestion 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
+        }
+
+        .subtitle {
+            margin-top: 36px;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #f87171; /* Warning amber-red */
+            text-shadow: 0 0 25px rgba(248, 113, 113, 0.4);
+            opacity: 0;
+            transform: translateY(15px);
+            animation: fadeInSubtitle 1.4s cubic-bezier(0.16, 1, 0.3, 1) 3.4s forwards;
+            letter-spacing: 0.5px;
+        }
+
+        /* SLIDE 2: Comparison (Optional toggle) */
+        #slide2 {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .grid-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 36px;
+            margin-top: 30px;
+        }
+
+        .comp-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 36px;
+            text-align: left;
+            backdrop-filter: blur(12px);
+        }
+
+        .comp-card.bad {
+            border-color: rgba(239, 68, 68, 0.3);
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.08);
+        }
+
+        .comp-card.good {
+            border-color: rgba(16, 185, 129, 0.4);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.15);
+        }
+
+        .card-header {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .comp-card.bad .card-header { color: #f87171; }
+        .comp-card.good .card-header { color: #34d399; }
+
+        .comp-list {
+            list-style: none;
+            font-size: 1.15rem;
+            line-height: 2;
+            color: #cbd5e1;
+        }
+
+        /* Controls hint at bottom */
+        .controls-hint {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            color: #475569;
+            z-index: 10;
+        }
+
+        kbd {
+            background: #1e293b;
+            padding: 3px 8px;
+            border-radius: 5px;
+            color: #94a3b8;
+            font-family: monospace;
+            border: 1px solid #334155;
+        }
+
+        @keyframes fadeInQuestion {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInSubtitle {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+
+    <div class="slide-container">
+        <!-- SLIDE 1 -->
+        <div id="slide1">
+            <h1 class="main-question">
+                "Would you walk down an unlit, pitch-black alley at 11:30 PM... just to save 2 minutes?"
+            </h1>
+            <p class="subtitle">
+                Google Maps thinks you should.
+            </p>
+        </div>
+
+        <!-- SLIDE 2 -->
+        <div id="slide2">
+            <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; color: #fff;">
+                The Flaw in Modern Navigation
+            </h2>
+            <p style="color: #94a3b8; font-size: 1.1rem; margin-bottom: 24px;">
+                Built for vehicle speed, ignoring pedestrian survival.
+            </p>
+
+            <div class="grid-comparison">
+                <div class="comp-card bad">
+                    <div class="card-header">🚗 Traditional Navigation (Built for Cars)</div>
+                    <ul class="comp-list">
+                        <li>⚠️ Optimizes solely for shortest road distance</li>
+                        <li>❌ Ignores absence of streetlights</li>
+                        <li>❌ Treats dark deserted alleys as normal paths</li>
+                        <li>❌ Zero awareness of nearby emergency aid</li>
+                    </ul>
+                </div>
+
+                <div class="comp-card good">
+                    <div class="card-header">🛡️ SafeStep Navigation (Built for Pedestrians)</div>
+                    <ul class="comp-list">
+                        <li>✅ Continuous illumination corridor scoring</li>
+                        <li>✅ Curbside Safe Havens (police & 24/7 pharmacies)</li>
+                        <li>✅ Real municipal road alternatives (no cuts)</li>
+                        <li>✅ Real-time Guardian SOS & WebSocket alerts</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls-hint">
+        Press <kbd>Space</kbd> or <kbd>→</kbd> to toggle Slide 2 &bull; Press <kbd>F11</kbd> for Fullscreen
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        function toggleSlide() {
+            const s1 = document.getElementById('slide1');
+            const s2 = document.getElementById('slide2');
+            if (currentSlide === 1) {
+                s1.style.display = 'none';
+                s2.style.display = 'block';
+                setTimeout(() => { s2.style.opacity = '1'; }, 20);
+                currentSlide = 2;
+            } else {
+                s2.style.opacity = '0';
+                setTimeout(() => {
+                    s2.style.display = 'none';
+                    s1.style.display = 'flex';
+                    s1.style.opacity = '1';
+                }, 300);
+                currentSlide = 1;
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
+                e.preventDefault();
+                toggleSlide();
+            }
+        });
+
+        document.body.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'KBD') {
+                toggleSlide();
+            }
+        });
+    </script>
+</body>
+</html>

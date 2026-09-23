@@ -436,6 +436,11 @@ class SafeStepApp {
                 }
             }
 
+            // On mobile viewports, minimize sidebar on calculation so full map & bottom banner are immediately visible
+            if (window.innerWidth <= 768 && !(window.navigationManager && window.navigationManager.isNavigating)) {
+                this.toggleMobilePanel(false);
+            }
+
         } catch (err) {
             console.error('Route calculation error:', err);
             window.showToast('⚠️ Could not calculate road routes. Check network connection.');
@@ -1175,8 +1180,33 @@ class SafeStepApp {
             case 'submit-report':
                 this.submitLiveReport();
                 break;
+            case 'toggle-mobile-panel':
+                this.toggleMobilePanel();
+                break;
             default:
                 console.warn('[SafeStep Action] Unrecognized action:', action);
+        }
+    }
+
+    toggleMobilePanel(forceState) {
+        const panel = document.querySelector('.control-panel');
+        const reopenPill = document.getElementById('btnMobilePillReopen');
+        if (!panel) return;
+
+        const willMinimize = (forceState !== undefined) ? !forceState : !panel.classList.contains('mobile-minimized');
+        panel.classList.toggle('mobile-minimized', willMinimize);
+
+        if (reopenPill) {
+            const isNavActive = window.navigationManager && window.navigationManager.isNavigating;
+            if (willMinimize && !isNavActive) {
+                reopenPill.classList.remove('hidden');
+            } else {
+                reopenPill.classList.add('hidden');
+            }
+        }
+
+        if (this.map) {
+            setTimeout(() => this.map.invalidateSize(), 350);
         }
     }
 

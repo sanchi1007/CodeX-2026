@@ -201,11 +201,22 @@ class NavigationManager {
         const hudBottom = document.getElementById('navigationHUDBottom');
         const sidebar = document.querySelector('.control-panel');
         const topBanner = document.getElementById('topNavBanner');
+        const sosBtn = document.getElementById('btnFloatingSOS');
+        const reopenPill = document.getElementById('btnMobilePillReopen');
 
         if (hudTop) hudTop.classList.toggle('active', show);
         if (hudBottom) hudBottom.classList.toggle('active', show);
         if (topBanner) topBanner.classList.toggle('nav-hidden', show);
         if (sidebar) sidebar.classList.toggle('nav-docked', show);
+        if (sosBtn) sosBtn.classList.toggle('nav-hidden', show);
+
+        if (reopenPill) {
+            if (show) {
+                reopenPill.classList.add('hidden');
+            } else if (sidebar && sidebar.classList.contains('mobile-minimized')) {
+                reopenPill.classList.remove('hidden');
+            }
+        }
     }
 }
 
