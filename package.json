@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "seed": "node seed.js",
-    "test": "node tests/security_fixes.test.js && node tests/integration.test.js"
+    "test": "node tests/security_fixes.test.js && node tests/integration.test.js && node tests/offline_routing.test.js"
   },
   "keywords": [],
   "author": "",

@@ -24,6 +24,18 @@ window.showToast = function(message) {
     }, 4500);
 };
 
+// Global HTML Escaper to Prevent Reflected/Stored XSS
+window.escapeHtml = function(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\//g, '&#x2F;');
+};
+
 class SafeStepApp {
     constructor() {
         // Default coordinates: Mumbai corridor (Goregaon Mulund Link Road to Guru Gobind Singh Marg)
@@ -364,7 +376,17 @@ class SafeStepApp {
             const cardId = isStart ? 'startFullAddress' : 'destFullAddress';
             const cardEl = document.getElementById(cardId);
             if (cardEl) {
-                cardEl.innerHTML = `<b>${placeName}</b><br><span style="color:#cbd5e1;font-size:0.75rem;">${fullAddr}</span>`;
+                cardEl.textContent = '';
+                const b = document.createElement('b');
+                b.textContent = placeName;
+                const br = document.createElement('br');
+                const span = document.createElement('span');
+                span.style.color = '#cbd5e1';
+                span.style.fontSize = '0.75rem';
+                span.textContent = fullAddr;
+                cardEl.appendChild(b);
+                cardEl.appendChild(br);
+                cardEl.appendChild(span);
             }
 
             const inputId = isStart ? 'startInput' : 'destInput';
@@ -374,8 +396,8 @@ class SafeStepApp {
             const tipColor = isStart ? '#38bdf8' : '#10b981';
             const tipText = `
                 <div style="font-weight:700;color:${tipColor};font-size:0.75rem;">${isStart ? '📍 START' : '🏁 DESTINATION'}</div>
-                <div style="font-size:0.9rem;font-weight:700;color:#fff;">${placeName}</div>
-                <div style="font-size:0.75rem;color:#cbd5e1;">${fullAddr}</div>
+                <div style="font-size:0.9rem;font-weight:700;color:#fff;">${escapeHtml(placeName)}</div>
+                <div style="font-size:0.75rem;color:#cbd5e1;">${escapeHtml(fullAddr)}</div>
             `;
             marker.bindTooltip(tipText, { direction: 'top', offset: [0, -12], sticky: true });
         } catch (e) {
@@ -493,7 +515,7 @@ class SafeStepApp {
             const midCoord = activeRoute.coordinates[midIdx];
             const badgeIcon = L.divIcon({
                 className: 'route-badge-container',
-                html: `<div class="route-badge-marker">🚶 <b>${activeRoute.formattedDuration}</b> (${activeRoute.formattedDistance}) &bull; ${activeRoute.safetyBadge}</div>`,
+                html: `<div class="route-badge-marker">🚶 <b>${escapeHtml(activeRoute.formattedDuration)}</b> (${escapeHtml(activeRoute.formattedDistance)}) &bull; ${escapeHtml(activeRoute.safetyBadge)}</div>`,
                 iconSize: [220, 24],
                 iconAnchor: [110, 12]
             });
@@ -512,19 +534,19 @@ class SafeStepApp {
             const scoreClass = r.safetyScore >= 85 ? 'text-green' : (r.safetyScore >= 65 ? 'text-amber' : 'text-red');
 
             html += `
-                <div class="route-option-card ${isSelected ? 'active' : ''} ${r.type}" onclick="window.app.switchActiveRoute('${r.routeId}')">
+                <div class="route-option-card ${isSelected ? 'active' : ''} ${escapeHtml(r.type)}" onclick="window.app.switchActiveRoute('${escapeHtml(r.routeId)}')">
                     <div class="route-opt-header">
-                        <span class="route-opt-title">${icon} ${r.name.split('(')[0].trim()}</span>
-                        <span class="route-opt-score ${scoreClass}">${r.safetyScore}/100</span>
+                        <span class="route-opt-title">${icon} ${escapeHtml(r.name.split('(')[0].trim())}</span>
+                        <span class="route-opt-score ${scoreClass}">${Number(r.safetyScore) || 0}/100</span>
                     </div>
                     <div class="route-opt-metrics">
-                        <span class="metric-val"><b>${r.formattedDuration}</b></span>
+                        <span class="metric-val"><b>${escapeHtml(r.formattedDuration)}</b></span>
                         <span class="metric-sep">&bull;</span>
-                        <span class="metric-val">${r.formattedDistance}</span>
+                        <span class="metric-val">${escapeHtml(r.formattedDistance)}</span>
                         <span class="metric-sep">&bull;</span>
-                        <span class="route-opt-badge ${r.type}">${r.safetyBadge}</span>
+                        <span class="route-opt-badge ${escapeHtml(r.type)}">${escapeHtml(r.safetyBadge)}</span>
                     </div>
-                    <div class="route-opt-desc">${r.safetyDesc}</div>
+                    <div class="route-opt-desc">${escapeHtml(r.safetyDesc)}</div>
                 </div>
             `;
         });

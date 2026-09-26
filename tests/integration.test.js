@@ -179,6 +179,32 @@ async function runIntegration() {
             failed++;
         }
 
+        // Test 5: Route Endpoint Neutralizes XSS in destName & originName
+        try {
+            const xssRouteRes = await makeRequest(testServer, {
+                path: '/api/route/road?originLat=19.1673&originLng=72.9392&destLat=19.1764&destLng=72.9463&hour=23&destName=%3Cscript%3Ealert(%22xss%22)%3C%2Fscript%3E&originName=%3Cimg%20src=x%20onerror=alert(1)%3E',
+                method: 'GET'
+            });
+
+            assert.strictEqual(xssRouteRes.status, 200);
+            assert.strictEqual(xssRouteRes.body.success, true);
+            const routes = xssRouteRes.body.routes;
+            assert.ok(routes.length >= 2, 'Routes should be returned');
+            routes.forEach(r => {
+                assert.ok(!r.name.includes('<script>'), 'Route name must not contain raw <script> tag');
+                assert.ok(!r.name.includes('<img'), 'Route name must not contain raw <img> tag');
+                if (r.detourReason) {
+                    assert.ok(!r.detourReason.includes('<script>'), 'detourReason must not contain raw <script> tag');
+                    assert.ok(!r.detourReason.includes('<img'), 'detourReason must not contain raw <img> tag');
+                }
+            });
+            console.log('  ✅ PASS: Route endpoint sanitizes and neutralizes XSS payloads in destName and originName');
+            passed++;
+        } catch (e) {
+            console.error('  ❌ FAIL: Route XSS neutralization test failed', e);
+            failed++;
+        }
+
     } finally {
         await new Promise((resolve) => testServer.close(resolve));
     }

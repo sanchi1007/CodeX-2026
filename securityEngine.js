@@ -66,9 +66,22 @@ function getTemporalBucket(date = new Date()) {
     };
 }
 
+// Helper: Strict HTML entity escaping to neutralize stored/reflected XSS
+function escapeHtml(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\//g, '&#x2F;');
+}
+
 // =========================================================================
 // 3. 🛡️ ANTI-DEFAMATION & STORED XSS CONTENT FILTER
 // Restricts free text to environmental conditions, blocks personal naming/phones
+// Allows legitimate safety reports of predatory/harassing behavior
 // =========================================================================
 function sanitizeAndFilterContent(text) {
     if (!text || typeof text !== 'string') {
@@ -88,16 +101,17 @@ function sanitizeAndFilterContent(text) {
     }
 
     // 2. Personal naming / defamation detection
-    // Revised logic: Allows neutral civic/location landmarks (e.g. "streetlight outside house no 45 is broken",
-    // "pothole near flat 3") while blocking personal targeting, doxxing, and defamation.
+    // Allows neutral civic/location landmarks and legitimate reports of predatory conduct
+    // (e.g. "a man was following/harassing me", "creep near bus stop") while blocking
+    // personal targeting of named individuals, doxxing, and pure character fraud attacks.
     const defamationPatterns = [
         // Targeting specific named individuals
         /\b(?:mr|mrs|ms|dr)\.?\s+[A-Za-z]{2,}/i,
         /\b(?:named|name is|person named)\s+[A-Za-z]{2,}/i,
         // Directing private communication or doxxing calls
         /\b(?:call him|call her|reach out to|contact him|contact her)\b/i,
-        // Accusatory / defamatory labels targeted at individuals or character attacks
-        /\b(?:thief|cheat|fraud|criminal|scammer|harasser|pervert|creep|molester|drunkard)\b/i,
+        // Accusatory / defamatory labels targeted at individuals or character fraud attacks
+        /\b(?:thief|cheat|fraud|scammer)\b/i,
         // Defamation explicitly targeting a residential address
         /\b(?:lives at|residing at|staying at)\s+(?:house|flat|plot|room|apt|apartment)\b/i
     ];
@@ -107,19 +121,13 @@ function sanitizeAndFilterContent(text) {
             return {
                 isValid: false,
                 sanitizedText: '',
-                violation: 'Reports must describe physical road or environmental conditions (e.g. broken lights, debris). Naming specific individuals, character allegations, or personal doxxing is prohibited.'
+                violation: 'Reports must describe physical road or environmental conditions (e.g. broken lights, debris) or general safety incidents. Naming specific individuals, character allegations, or personal doxxing is prohibited.'
             };
         }
     }
 
     // 3. Strict HTML entity escaping to neutralize stored XSS
-    const sanitized = raw
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#x27;')
-        .replace(/\//g, '&#x2F;');
+    const sanitized = escapeHtml(raw);
 
     return {
         isValid: true,
@@ -511,6 +519,7 @@ function generateTripRoomToken() {
 }
 
 module.exports = {
+    escapeHtml,
     fuzzCoordinates,
     getTemporalBucket,
     sanitizeAndFilterContent,

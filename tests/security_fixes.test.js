@@ -185,7 +185,7 @@ async function runTests() {
         assert.ok(ejsContent.includes('data-action="trigger-sos"'), 'Buttons should use data-action');
     });
 
-    // 9. Defamation Filter False Positive Fix
+    // 9. Defamation Filter False Positive & Harassment Reporting Fix
     test('Requirement 9: Legitimate address reports are allowed by defamation filter', () => {
         const legit1 = sanitizeAndFilterContent('Streetlight outside house no 45 is broken');
         assert.strictEqual(legit1.isValid, true, '"Streetlight outside house no 45 is broken" should be valid');
@@ -197,12 +197,52 @@ async function runTests() {
         assert.strictEqual(legit3.isValid, true, '"plot 8" should be valid');
     });
 
-    test('Requirement 9: Defamatory attacks and targeted harassment are blocked', () => {
+    test('Requirement 9: Defamation filter allows generic predatory and harassment conduct reporting', () => {
+        const h1 = sanitizeAndFilterContent('A man was following and harassing me near the bus stop');
+        assert.strictEqual(h1.isValid, true, 'Generic following/harassing report must be allowed');
+
+        const h2 = sanitizeAndFilterContent('Suspicious creep lurking in the dark alleyway');
+        assert.strictEqual(h2.isValid, true, 'Creep report must be allowed');
+
+        const h3 = sanitizeAndFilterContent('Pervert approached women near metro exit');
+        assert.strictEqual(h3.isValid, true, 'Pervert report must be allowed');
+
+        const h4 = sanitizeAndFilterContent('Warning: molester reported near the city park gate');
+        assert.strictEqual(h4.isValid, true, 'Molester warning report must be allowed');
+
+        const h5 = sanitizeAndFilterContent('Drunkard shouting at pedestrians on 5th street');
+        assert.strictEqual(h5.isValid, true, 'Drunkard conduct report must be allowed');
+
+        const h6 = sanitizeAndFilterContent('Criminal behavior reported near train station');
+        assert.strictEqual(h6.isValid, true, 'Criminal behavior report must be allowed');
+    });
+
+    test('Requirement 9: Defamatory attacks and targeting specific named individuals are blocked', () => {
         const def1 = sanitizeAndFilterContent('John Doe is a thief and scammer');
         assert.strictEqual(def1.isValid, false, 'Defamatory personal attack should be blocked');
 
-        const def2 = sanitizeAndFilterContent('The shopkeeper at XYZ is a fraud and criminal');
+        const def2 = sanitizeAndFilterContent('The shopkeeper at XYZ is a fraud and scammer');
         assert.strictEqual(def2.isValid, false, 'Targeted fraud allegation should be blocked');
+
+        const def3 = sanitizeAndFilterContent('Mr. Sharma is following women near station');
+        assert.strictEqual(def3.isValid, false, 'Targeting named Mr. Sharma must be blocked');
+
+        const def4 = sanitizeAndFilterContent('A person named Alex was harassing pedestrians');
+        assert.strictEqual(def4.isValid, false, 'Targeting person named Alex must be blocked');
+
+        const def5 = sanitizeAndFilterContent('Mrs. Gupta lives at flat 4 and causes trouble');
+        assert.strictEqual(def5.isValid, false, 'Targeting residential address and named individual must be blocked');
+    });
+
+    // 13. XSS Escaping Helper Defense
+    test('Requirement 13: escapeHtml strictly neutralizes HTML markup and script tags', () => {
+        const { escapeHtml } = securityEngine;
+        assert.strictEqual(typeof escapeHtml, 'function', 'escapeHtml helper must be exported');
+        assert.strictEqual(escapeHtml('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;');
+        assert.strictEqual(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+        assert.strictEqual(escapeHtml("Tom & Jerry's / 'Place'"), 'Tom &amp; Jerry&#x27;s &#x2F; &#x27;Place&#x27;');
+        assert.strictEqual(escapeHtml(null), '');
+        assert.strictEqual(escapeHtml(undefined), '');
     });
 
     // 10. Report ID Entropy

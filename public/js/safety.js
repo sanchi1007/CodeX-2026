@@ -319,7 +319,14 @@ class SafetyManager {
         if (detourNoticeEl) {
             if (route.detourReason) {
                 detourNoticeEl.style.display = 'block';
-                detourNoticeEl.innerHTML = `🛡️ <b>Detour Notice:</b> ${route.detourReason}`;
+                detourNoticeEl.textContent = '';
+                const icon = document.createTextNode('🛡️ ');
+                const b = document.createElement('b');
+                b.textContent = 'Detour Notice: ';
+                const text = document.createTextNode(route.detourReason);
+                detourNoticeEl.appendChild(icon);
+                detourNoticeEl.appendChild(b);
+                detourNoticeEl.appendChild(text);
             } else {
                 detourNoticeEl.style.display = 'none';
             }

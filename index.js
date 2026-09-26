@@ -15,6 +15,7 @@ const helmet = require('helmet');
 const mongoose = require('mongoose');
 const initialSafetyPOIs = require('./data/safetyPOIs.json');
 const {
+    escapeHtml,
     fuzzCoordinates,
     getTemporalBucket,
     sanitizeAndFilterContent,
@@ -524,6 +525,122 @@ function calculateRouteSafety({ coords, isNight, hour, pois, reports, lightingDa
     };
 }
 
+// Synthesizes realistic turn-by-turn road steps for offline grid routes
+function synthesizeGridSteps(coords, originName = 'Origin Road', destName = 'Destination', streetNames = []) {
+    if (!coords || coords.length < 2) {
+        return [
+            {
+                stepIndex: 0,
+                instruction: `Head to ${destName}`,
+                streetName: destName,
+                distanceMeters: 0,
+                formattedDistance: '0 m',
+                durationSeconds: 0,
+                icon: '🚶',
+                location: coords && coords[0] ? coords[0] : [0, 0]
+            }
+        ];
+    }
+
+    // Find direction change corners in coords
+    const corners = [];
+    let prevBearing = null;
+
+    for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i];
+        const p2 = coords[i + 1];
+        const dLat = p2[0] - p1[0];
+        const dLng = p2[1] - p1[1];
+        if (Math.abs(dLat) < 1e-7 && Math.abs(dLng) < 1e-7) continue;
+        const bearing = Math.atan2(dLng, dLat) * (180 / Math.PI);
+        if (prevBearing !== null) {
+            let diff = Math.abs(bearing - prevBearing);
+            if (diff > 180) diff = 360 - diff;
+            if (diff >= 20) {
+                // Significant turn detected
+                corners.push({ index: i, coord: p1, bearingDiff: bearing - prevBearing });
+            }
+        }
+        prevBearing = bearing;
+    }
+
+    // Ensure we have at least 3 segments (4+ steps total)
+    const keyIndices = [0];
+    if (corners.length >= 2) {
+        corners.forEach(c => keyIndices.push(c.index));
+    } else {
+        const quarter = Math.floor(coords.length / 4);
+        const half = Math.floor(coords.length / 2);
+        const threeQuarter = Math.floor((coords.length * 3) / 4);
+        if (quarter > 0 && quarter < coords.length - 1) keyIndices.push(quarter);
+        if (half > quarter && half < coords.length - 1) keyIndices.push(half);
+        if (threeQuarter > half && threeQuarter < coords.length - 1) keyIndices.push(threeQuarter);
+    }
+    keyIndices.push(coords.length - 1);
+
+    const defaultStreets = (streetNames && streetNames.length > 0) ? streetNames : [
+        originName || 'Pedestrian Walkway',
+        'Central Connecting Avenue',
+        'Municipal Corridor',
+        'Destination Approach'
+    ];
+
+    const steps = [];
+    for (let s = 0; s < keyIndices.length - 1; s++) {
+        const startIdx = keyIndices[s];
+        const endIdx = keyIndices[s + 1];
+        const segCoords = coords.slice(startIdx, endIdx + 1);
+        const segDist = Math.max(15, Math.round(getPathMeters(segCoords)));
+        const segDuration = Math.round(segDist / 1.33);
+        const street = defaultStreets[s % defaultStreets.length];
+
+        let icon = '⬆️';
+        let instruction = `Continue on ${street} for ${segDist} m`;
+
+        if (s === 0) {
+            icon = '🚶';
+            instruction = `Head along ${originName || street}`;
+        } else {
+            const pStart = coords[startIdx];
+            const pNext = coords[Math.min(startIdx + 1, coords.length - 1)];
+            const dLng = pNext[1] - pStart[1];
+            if (dLng > 0) {
+                icon = '➡️';
+                instruction = `Turn right onto ${street}`;
+            } else {
+                icon = '⬅️';
+                instruction = `Turn left onto ${street}`;
+            }
+        }
+
+        steps.push({
+            stepIndex: s,
+            instruction,
+            streetName: street,
+            distanceMeters: segDist,
+            formattedDistance: segDist < 1000 ? `${segDist} m` : `${(segDist / 1000).toFixed(2)} km`,
+            durationSeconds: segDuration,
+            icon,
+            location: coords[startIdx]
+        });
+    }
+
+    // Final arrival step
+    const destLoc = coords[coords.length - 1];
+    steps.push({
+        stepIndex: steps.length,
+        instruction: `Arrive at ${destName || 'destination'}`,
+        streetName: destName || 'Destination',
+        distanceMeters: 0,
+        formattedDistance: '0 m',
+        durationSeconds: 0,
+        icon: '🏁',
+        location: destLoc
+    });
+
+    return steps;
+}
+
 function buildRouteObject({ routeId, type, name, coords, steps, isNight, hour, lightingData, safeHavenCount, detourReason, pois, reports }) {
     const distMeters = getPathMeters(coords);
     const durationMins = Math.max(1, Math.round(distMeters / 80));
@@ -566,10 +683,7 @@ function buildRouteObject({ routeId, type, name, coords, steps, isNight, hour, l
         lightingCoverage: lightingData || { available: false, label: 'Lighting information unavailable' },
         isNight,
         coordinates: coords,
-        steps: steps || [
-            { stepIndex: 0, instruction: 'Head along pedestrian road corridor', streetName: 'Main Road', distanceMeters: distMeters, formattedDistance: `${distMeters} m`, icon: '🚶', location: coords[0] },
-            { stepIndex: 1, instruction: 'Arrive at destination point', streetName: 'Destination', distanceMeters: 0, formattedDistance: '0 m', icon: '🏁', location: coords[coords.length - 1] }
-        ],
+        steps: (steps && steps.length > 0) ? steps : synthesizeGridSteps(coords, name, 'Destination'),
         safetyAlerts: alerts,
         safeHavenCount: safeHavenCount || 0,
         scoreBreakdown: safetyEvaluation.breakdown,
@@ -658,7 +772,13 @@ app.get('/api/geocode/reverse', async (req, res) => {
         ].filter(p => p && p.trim().length > 0);
 
         const fullAddress = parts.length > 0 ? parts.join(', ') : `${placeName}, ${city}, ${state}, ${pincode}, ${country}`;
-        const result = { success: true, placeName, fullAddress, rawDisplayName: data.display_name, addressDetails: addr };
+        const result = {
+            success: true,
+            placeName: escapeHtml(placeName),
+            fullAddress: escapeHtml(fullAddress),
+            rawDisplayName: escapeHtml(data.display_name || ''),
+            addressDetails: addr
+        };
 
         if (geocodeCache.size < MAX_GEOCODE_CACHE) {
             geocodeCache.set(cacheKey, result);
@@ -685,7 +805,12 @@ app.get('/api/geocode/search', async (req, res) => {
             headers: { 'User-Agent': 'SafeStep-SafeNav/2.5 (safestep-appsec)' }
         });
         const results = await response.json();
-        res.json(results);
+        const sanitizedResults = Array.isArray(results) ? results.map(item => ({
+            ...item,
+            display_name: escapeHtml(item.display_name || ''),
+            name: escapeHtml(item.name || '')
+        })) : results;
+        res.json(sanitizedResults);
     } catch (err) {
         console.error('Search error:', err);
         res.status(500).json({ error: 'Search failed' });
@@ -1055,8 +1180,8 @@ app.get('/api/route/road', async (req, res) => {
         const primaryData = await fetchOSRMRoute(primaryWalkUrl, 5000);
         let osrmRoutes = (primaryData && primaryData.routes) ? [...primaryData.routes] : [];
 
-        const clientDestName = req.query.destName ? String(req.query.destName).trim() : '';
-        const clientOriginName = req.query.originName ? String(req.query.originName).trim() : '';
+        const clientDestName = req.query.destName ? escapeHtml(String(req.query.destName).trim()) : '';
+        const clientOriginName = req.query.originName ? escapeHtml(String(req.query.originName).trim()) : '';
         const directMeters = getDistanceMeters([oLat, oLng], [dLat, dLng]);
         const isSanctuary = clientDestName.toLowerCase().includes('sanctuary') || clientDestName.toLowerCase().includes('safe haven');
         const isShortTrip = directMeters < 500 || isSanctuary;
@@ -1238,26 +1363,65 @@ app.get('/api/route/road', async (req, res) => {
             // Offline Manhattan road network generator (replaces straight line cuts with dense road grid turns)
             const dLatDiff = dLat - oLat;
             const dLngDiff = dLng - oLng;
-            const generateGridRoute = (cornerFactorLat, cornerFactorLng) => {
-                const cornerLat = oLat + dLatDiff * cornerFactorLat;
-                const cornerLng = oLng + dLngDiff * cornerFactorLng;
+
+            const generateGridRoute = (waypointsFactors) => {
+                const anchors = [
+                    [oLat, oLng],
+                    ...waypointsFactors.map(([fLat, fLng]) => [oLat + dLatDiff * fLat, oLng + dLngDiff * fLng]),
+                    [dLat, dLng]
+                ];
                 const pts = [];
-                for (let i = 0; i <= 10; i++) {
-                    const f = i / 10;
-                    pts.push([oLat + (cornerLat - oLat) * f, oLng + (cornerLng - oLng) * f]);
-                }
-                for (let i = 1; i <= 10; i++) {
-                    const f = i / 10;
-                    pts.push([cornerLat + (dLat - cornerLat) * f, cornerLng + (dLng - cornerLng) * f]);
+                for (let seg = 0; seg < anchors.length - 1; seg++) {
+                    const start = anchors[seg];
+                    const end = anchors[seg + 1];
+                    const numPts = 8;
+                    for (let i = (seg === 0 ? 0 : 1); i <= numPts; i++) {
+                        const f = i / numPts;
+                        pts.push([
+                            start[0] + (end[0] - start[0]) * f,
+                            start[1] + (end[1] - start[1]) * f
+                        ]);
+                    }
                 }
                 return pts;
             };
 
-            const boulevardCoords = generateGridRoute(0.8, 0.2);
-            const shortcutCoords = generateGridRoute(0.3, 0.7);
+            const boulevardCoords = generateGridRoute([
+                [0.35, 0.10],
+                [0.70, 0.35],
+                [0.90, 0.80]
+            ]);
+
+            const shortcutCoords = generateGridRoute([
+                [0.25, 0.50],
+                [0.60, 0.75],
+                [0.85, 0.95]
+            ]);
 
             const fallbackDest = clientDestName || 'Destination';
             const fallbackOrigin = clientOriginName || 'Origin';
+
+            const safestSteps = synthesizeGridSteps(boulevardCoords, fallbackOrigin, fallbackDest, [
+                fallbackOrigin,
+                'Illuminated Municipal Avenue',
+                'Protected Safe Boulevard',
+                'Destination Approach'
+            ]);
+
+            const fastestSteps = synthesizeGridSteps(shortcutCoords, fallbackOrigin, fallbackDest, [
+                fallbackOrigin,
+                'Secondary Shortcut Lane',
+                'Narrow Unlit Alleyway',
+                'Destination Roadway'
+            ]);
+
+            const normalSteps = synthesizeGridSteps(boulevardCoords, fallbackOrigin, fallbackDest, [
+                fallbackOrigin,
+                'Connecting City Avenue',
+                'Standard Pedestrian Walkway',
+                'Destination Corridor'
+            ]);
+
             const rSafest = buildRouteObject({
                 routeId: 'safest',
                 type: 'safest',
@@ -1265,6 +1429,7 @@ app.get('/api/route/road', async (req, res) => {
                     ? `via ${fallbackOrigin} to ${fallbackDest} (Safest Route)`
                     : `${fallbackDest} Corridor (Safest Route)`,
                 coords: boulevardCoords,
+                steps: safestSteps,
                 isNight,
                 hour,
                 lightingData: { available: true, percentage: 88, source: 'demo' },
@@ -1279,6 +1444,7 @@ app.get('/api/route/road', async (req, res) => {
                 type: 'fastest',
                 name: `Direct Road to ${fallbackDest} (Fastest / Unsafe Route)`,
                 coords: shortcutCoords,
+                steps: fastestSteps,
                 isNight,
                 hour,
                 lightingData: { available: true, percentage: 38, source: 'demo' },
@@ -1292,6 +1458,7 @@ app.get('/api/route/road', async (req, res) => {
                 type: 'normal',
                 name: `Standard Route to ${fallbackDest}`,
                 coords: boulevardCoords,
+                steps: normalSteps,
                 isNight,
                 hour,
                 lightingData: { available: true, percentage: 65, source: 'demo' },
