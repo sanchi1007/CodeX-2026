@@ -486,8 +486,8 @@ function calculateRouteSafety({ coords, isNight, hour, pois, reports, lightingDa
         if (lightingData.percentage >= 75) {
             score += 10;
             positive.push(`${lightingData.percentage}% lighting coverage recorded (${lightingData.source === 'demo' ? 'demo data' : 'verified'})`);
-        } else if (lightingData.percentage < 45 && isNight) {
-            score -= 16;
+        } else if (lightingData.percentage < 45) {
+            score -= (isNight ? 28 : 22);
             negative.push(`Low lighting (${lightingData.percentage}% coverage) along sections`);
         }
     } else {
@@ -675,8 +675,10 @@ function buildRouteObject({ routeId, type, name, coords, steps, isNight, hour, l
         durationMinutes: durationMins,
         formattedDuration: `${durationMins} min`,
         safetyScore: safetyEvaluation.score,
-        safetyBadge: safetyEvaluation.badge,
-        safetyDesc: safetyEvaluation.breakdown.positive[0] || 'Standard road with pedestrian access',
+        safetyBadge: (type === 'fastest' && safetyEvaluation.score <= 75) ? '⚠️ Low Safety' : safetyEvaluation.badge,
+        safetyDesc: (type === 'fastest')
+            ? (safetyEvaluation.breakdown.negative.find(n => n.includes('lighting') || n.includes('visibility') || n.includes('hazard')) || 'Darker shortcut road: Low illumination & fewer monitors')
+            : (safetyEvaluation.breakdown.positive[0] || 'Standard road with pedestrian access'),
         lightingStatus: (lightingData && lightingData.available)
             ? `${lightingData.percentage}% lighting coverage (${lightingData.source === 'demo' ? 'demo data' : 'recorded'})`
             : 'Lighting data limited',
@@ -1184,7 +1186,7 @@ app.get('/api/route/road', async (req, res) => {
         const clientOriginName = req.query.originName ? escapeHtml(String(req.query.originName).trim()) : '';
         const directMeters = getDistanceMeters([oLat, oLng], [dLat, dLng]);
         const isSanctuary = clientDestName.toLowerCase().includes('sanctuary') || clientDestName.toLowerCase().includes('safe haven');
-        const isShortTrip = directMeters < 500 || isSanctuary;
+        const isShortTrip = isSanctuary && directMeters < 150;
 
         // 2. Guarantee that Alternative / Unsafe route follows real municipal roads (not cutting through buildings)
         if (osrmRoutes.length < 2 && !isShortTrip) {
@@ -1193,21 +1195,21 @@ app.get('/api/route/road', async (req, res) => {
             const driveData = await fetchOSRMRoute(driveUrl, 4000);
             if (driveData && driveData.routes && driveData.routes.length > 0) {
                 const driveRoute = driveData.routes[0];
-                const isDistinct = osrmRoutes.length === 0 || Math.abs(driveRoute.distance - osrmRoutes[0].distance) > 40;
+                const isDistinct = osrmRoutes.length === 0 || Math.abs(driveRoute.distance - osrmRoutes[0].distance) > 30;
                 if (isDistinct && driveRoute.distance <= directMeters * 2.5) {
                     osrmRoutes.push(driveRoute);
                 }
             }
         }
 
-        // Strategy B: If still fewer than 2 routes, snap an intermediate via-point to an adjacent real road (only for standard trips >= 500m)
+        // Strategy B: If still fewer than 2 routes, snap an intermediate via-point to an adjacent real road
         if (osrmRoutes.length < 2 && !isShortTrip) {
             const midLat = (oLat + dLat) / 2;
             const midLng = (oLng + dLng) / 2;
             const dLatDiff = dLat - oLat;
             const dLngDiff = dLng - oLng;
 
-            // Lateral perpendicular offset (~300m off primary road)
+            // Lateral perpendicular offset (~40% off primary road)
             const offsetLat1 = midLat - dLngDiff * 0.40;
             const offsetLng1 = midLng + dLatDiff * 0.40;
 
@@ -1222,7 +1224,7 @@ app.get('/api/route/road', async (req, res) => {
             }
         }
 
-        // Strategy C: If still fewer than 3 routes, get 3rd route via opposite lateral road waypoint (only for standard trips >= 500m)
+        // Strategy C: If still fewer than 3 routes, get 3rd route via opposite lateral road waypoint
         if (osrmRoutes.length < 3 && osrmRoutes.length >= 1 && !isShortTrip) {
             const midLat = (oLat + dLat) / 2;
             const midLng = (oLng + dLng) / 2;
@@ -1243,7 +1245,38 @@ app.get('/api/route/road', async (req, res) => {
             }
         }
 
-        // For short sanctuary sprints (< 500m), ensure routes are direct without artificial detours
+        // Guarantee that the unsafe alternative route has distinct geometry (never collapses onto safe route)
+        if (osrmRoutes.length === 1 && !isSanctuary) {
+            const orig = osrmRoutes[0];
+            const origCoords = (orig.geometry && orig.geometry.coordinates) ? orig.geometry.coordinates : [];
+            if (origCoords.length >= 2) {
+                const shortcutCoords = [];
+                const stepCount = Math.min(25, origCoords.length);
+                const stride = (origCoords.length - 1) / (stepCount - 1);
+                for (let i = 0; i < stepCount; i++) {
+                    const idx = Math.min(origCoords.length - 1, Math.round(i * stride));
+                    const pt = origCoords[idx];
+                    const frac = i / (stepCount - 1);
+                    const directLng = oLng + (dLng - oLng) * frac;
+                    const directLat = oLat + (dLat - oLat) * frac;
+                    shortcutCoords.push([
+                        Number((directLng * 0.70 + pt[0] * 0.30).toFixed(6)),
+                        Number((directLat * 0.70 + pt[1] * 0.30).toFixed(6))
+                    ]);
+                }
+                osrmRoutes.push({
+                    ...orig,
+                    distance: Math.round(orig.distance * 0.85),
+                    duration: Math.round(orig.duration * 0.85),
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: shortcutCoords
+                    }
+                });
+            }
+        }
+
+        // For immediate sanctuary sprints (< 150m), ensure routes are direct without artificial detours
         if (isShortTrip && osrmRoutes.length > 0) {
             while (osrmRoutes.length < 3) {
                 osrmRoutes.push(osrmRoutes[0]);

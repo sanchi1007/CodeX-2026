@@ -462,6 +462,7 @@ input[type="range"] {
 
 .card-status.safe { color: #10b981; }
 .card-status.warning { color: #f59e0b; }
+.card-status.danger { color: #ef4444; }
 
 .status-dot {
     width: 8px;
@@ -1320,8 +1321,9 @@ input[type="range"] {
 }
 
 .route-option-card.active.fastest {
-    border-color: #f59e0b;
-    background: rgba(245, 158, 11, 0.12);
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25);
 }
 
 .route-option-card.active.normal {
@@ -1385,7 +1387,7 @@ input[type="range"] {
 }
 
 .route-opt-badge.safest { background: rgba(16, 185, 129, 0.25); color: #10b981; }
-.route-opt-badge.fastest { background: rgba(245, 158, 11, 0.25); color: #f59e0b; }
+.route-opt-badge.fastest { background: rgba(239, 68, 68, 0.25); color: #ef4444; }
 .route-opt-badge.normal { background: rgba(56, 189, 248, 0.25); color: #38bdf8; }
 
 .route-opt-desc {

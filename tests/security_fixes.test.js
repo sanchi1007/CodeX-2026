@@ -303,6 +303,22 @@ async function runTests() {
         assert.ok(appContent.includes("case 'route-to-poi':"), 'app.js dispatchAction must support route-to-poi');
     });
 
+    // 15. Unsafe Route Visual Warning & Red Route Integrity
+    test('Requirement 15: Unsafe route is rendered as a prominent red route with distinct warning styles', () => {
+        const publicJsDir = path.join(__dirname, '..', 'public', 'js');
+        const appContent = fs.readFileSync(path.join(publicJsDir, 'app.js'), 'utf8');
+
+        // Verify alternative polyline assigns #ef4444 to unsafe / fastest route
+        assert.ok(appContent.includes("isUnsafe ? '#ef4444' : '#64748b'"), 'Unsafe alternative route must use red #ef4444 polyline');
+        // Verify active polyline assigns #ef4444 when unsafe route is selected
+        assert.ok(appContent.includes("isUnsafe ? '#ef4444' : '#38bdf8'"), 'Active unsafe route must use red #ef4444 polyline');
+
+        const cssContent = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+        assert.ok(cssContent.includes('.card-status.danger { color: #ef4444; }'), 'style.css must define .card-status.danger with #ef4444');
+        assert.ok(cssContent.includes('.route-opt-badge.fastest { background: rgba(239, 68, 68, 0.25); color: #ef4444; }'), 'Fastest route badge must be red');
+        assert.ok(cssContent.includes('.route-option-card.active.fastest'), 'Fastest route option card must have red active state');
+    });
+
     console.log(`\n📊 TEST SUMMARY: ${passed} Passed, ${failed} Failed\n`);
     if (failed > 0) {
         process.exit(1);

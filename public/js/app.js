@@ -449,9 +449,9 @@ class SafeStepApp {
                 if (activeRoute.type === 'safest') {
                     statusTextEl.textContent = 'Recommended Safe Road Corridor';
                     statusBadgeWrapper.className = 'card-status safe';
-                } else if (activeRoute.type === 'fastest') {
-                    statusTextEl.textContent = activeRoute.safetyScore < 60 ? 'Alternative Unsafe Road Corridor' : 'Direct Fastest Road Corridor';
-                    statusBadgeWrapper.className = 'card-status warning';
+                } else if (activeRoute.type === 'fastest' || activeRoute.routeId === 'fastest') {
+                    statusTextEl.textContent = 'Alternative Unsafe Road Corridor';
+                    statusBadgeWrapper.className = 'card-status danger';
                 } else {
                     statusTextEl.textContent = 'Standard Road Corridor';
                     statusBadgeWrapper.className = 'card-status normal';
@@ -481,22 +481,28 @@ class SafeStepApp {
         // Draw alternative routes (dashed, background)
         routes.forEach(r => {
             if (r.routeId !== activeRoute.routeId && r.coordinates && r.coordinates.length > 0) {
-                const color = (r.routeId === 'fastest' && (r.isNight || r.safetyScore < 60)) ? '#ef4444' : '#64748b';
+                const isUnsafe = (r.routeId === 'fastest' || r.type === 'fastest');
+                const color = isUnsafe ? '#ef4444' : '#64748b';
                 const layer = L.polyline(r.coordinates, {
                     color,
-                    weight: 5,
-                    opacity: 0.55,
-                    dashArray: '6, 8'
+                    weight: isUnsafe ? 6 : 4,
+                    opacity: isUnsafe ? 0.85 : 0.55,
+                    dashArray: isUnsafe ? '6, 8' : '4, 6'
                 }).addTo(this.map);
 
                 layer.on('click', () => this.switchActiveRoute(r.routeId));
+                layer.bindTooltip(
+                    isUnsafe ? '⚠️ Unsafe / Direct Shortcut Route (Click to select)' : `${escapeHtml(r.name)} (Click to select)`,
+                    { sticky: true }
+                );
                 this.routeLayers[r.routeId] = layer;
             }
         });
 
         // Draw active route on top
         if (activeRoute && activeRoute.coordinates && activeRoute.coordinates.length > 0) {
-            const activeColor = activeRoute.type === 'safest' ? '#10b981' : (activeRoute.type === 'fastest' ? (activeRoute.safetyScore < 60 ? '#f87171' : '#f59e0b') : '#38bdf8');
+            const isUnsafe = (activeRoute.routeId === 'fastest' || activeRoute.type === 'fastest');
+            const activeColor = activeRoute.type === 'safest' ? '#10b981' : (isUnsafe ? '#ef4444' : '#38bdf8');
 
             const mainLayer = L.polyline(activeRoute.coordinates, {
                 color: activeColor,
@@ -577,9 +583,9 @@ class SafeStepApp {
                 if (route.type === 'safest') {
                     statusTextEl.textContent = 'Recommended Safe Road Corridor';
                     statusBadgeWrapper.className = 'card-status safe';
-                } else if (route.type === 'fastest') {
-                    statusTextEl.textContent = 'Direct Fastest Road Corridor';
-                    statusBadgeWrapper.className = 'card-status warning';
+                } else if (route.type === 'fastest' || route.routeId === 'fastest') {
+                    statusTextEl.textContent = 'Alternative Unsafe Road Corridor';
+                    statusBadgeWrapper.className = 'card-status danger';
                 } else {
                     statusTextEl.textContent = 'Standard Road Corridor';
                     statusBadgeWrapper.className = 'card-status normal';
@@ -603,9 +609,15 @@ class SafeStepApp {
             timeEl.textContent = `${route.formattedDuration} (ETA ${calculateEta(route.durationMinutes, this.currentHour)})`;
         }
 
+        const isUnsafe = (route.type === 'fastest' || route.routeId === 'fastest');
         if (badgeEl) {
-            badgeEl.className = `nav-badge ${route.type === 'safest' ? 'safe' : (route.type === 'fastest' && route.isNight ? 'warning' : 'safe')}`;
-            badgeEl.textContent = route.safetyBadge;
+            badgeEl.className = `nav-badge ${isUnsafe ? 'warning' : 'safe'}`;
+            badgeEl.textContent = isUnsafe ? '⚠️ UNSAFE CORRIDOR' : route.safetyBadge;
+        }
+
+        const banner = document.getElementById('topNavBanner');
+        if (banner) {
+            banner.className = `top-nav-banner ${isUnsafe ? 'warning' : 'safe'}`;
         }
 
         if (descEl) {
