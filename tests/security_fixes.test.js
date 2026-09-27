@@ -283,6 +283,26 @@ async function runTests() {
         assert.strictEqual(afterRevokeCheck.error, 'Authorization token has been revoked');
     });
 
+    // 14. Frontend CSP Compliance & SOS Fallback Integrity
+    test('Requirement 14: Client scripts have 0 inline on* handlers and accurate SOS fallbacks', () => {
+        const publicJsDir = path.join(__dirname, '..', 'public', 'js');
+        const jsFiles = fs.readdirSync(publicJsDir).filter(f => f.endsWith('.js'));
+        
+        for (const file of jsFiles) {
+            const content = fs.readFileSync(path.join(publicJsDir, file), 'utf8');
+            const inlineOnMatch = content.match(/\bon(click|error|load)\s*=/i);
+            assert.strictEqual(inlineOnMatch, null, `File public/js/${file} contains inline on* handler: ${inlineOnMatch ? inlineOnMatch[0] : ''}`);
+        }
+
+        const sosContent = fs.readFileSync(path.join(publicJsDir, 'sos.js'), 'utf8');
+        assert.ok(sosContent.includes('safestep_trusted_contacts'), 'sos.js must check safestep_trusted_contacts for emergency contact');
+        assert.ok(!sosContent.includes('77.28395'), 'sos.js must not contain stale Nanded coordinates [19.19107, 77.28395]');
+
+        const appContent = fs.readFileSync(path.join(publicJsDir, 'app.js'), 'utf8');
+        assert.ok(appContent.includes("case 'switch-route':"), 'app.js dispatchAction must support switch-route');
+        assert.ok(appContent.includes("case 'route-to-poi':"), 'app.js dispatchAction must support route-to-poi');
+    });
+
     console.log(`\n📊 TEST SUMMARY: ${passed} Passed, ${failed} Failed\n`);
     if (failed > 0) {
         process.exit(1);

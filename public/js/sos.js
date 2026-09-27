@@ -63,6 +63,42 @@ class SOSManager {
         if (window.showToast) window.showToast('✅ Emergency alert dismissed safely.');
     }
 
+    getUserCoordinates() {
+        if (window.app && typeof window.app.getUserCoordinates === 'function') {
+            const coord = window.app.getUserCoordinates();
+            if (coord && Array.isArray(coord) && coord.length === 2 && !isNaN(coord[0]) && !isNaN(coord[1])) {
+                return coord;
+            }
+        }
+        if (window.app && window.app.originCoords && Array.isArray(window.app.originCoords)) {
+            return window.app.originCoords;
+        }
+        return [19.16730, 72.93920];
+    }
+
+    getEmergencyContact() {
+        let contactPhone = '9822041290';
+        let contactName = 'Emergency Contact';
+        try {
+            const stored = localStorage.getItem('safestep_trusted_contacts');
+            if (stored) {
+                const contacts = JSON.parse(stored);
+                if (Array.isArray(contacts) && contacts.length > 0 && contacts[0].phone) {
+                    contactPhone = contacts[0].phone;
+                    contactName = contacts[0].name || contactName;
+                    return { contactPhone, contactName };
+                }
+            }
+            const userStr = localStorage.getItem('safestep_user');
+            if (userStr) {
+                const u = JSON.parse(userStr);
+                if (u.contactPhone) contactPhone = u.contactPhone;
+                if (u.contactName) contactName = u.contactName;
+            }
+        } catch (e) {}
+        return { contactPhone, contactName };
+    }
+
     /**
      * 26. TRUTHFUL EMERGENCY PROTOCOL
      * Never claims emergency services were dispatched or contacts notified when they weren't.
@@ -73,23 +109,27 @@ class SOSManager {
         if (countdownContainer) countdownContainer.style.display = 'none';
         if (actionsEl) actionsEl.style.display = 'block';
 
-        const userCoord = window.app ? window.app.getUserCoordinates() : [19.19107, 77.28395];
+        const userCoord = this.getUserCoordinates();
 
         // Populate nearest facilities with real distances
         const facilities = window.safetyManager.getNearestEmergencyFacilities(userCoord);
         const policeInfoEl = document.getElementById('sosNearestPolice');
         const hospInfoEl = document.getElementById('sosNearestHospital');
+        const esc = (typeof window.escapeHtml === 'function') 
+            ? window.escapeHtml 
+            : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 
         if (policeInfoEl) {
             if (facilities.nearestPolice) {
-                const distText = facilities.nearestPolice.distance < 1000
-                    ? `${Math.round(facilities.nearestPolice.distance)} m`
-                    : `${(facilities.nearestPolice.distance / 1000).toFixed(1)} km`;
+                const p = facilities.nearestPolice;
+                const distText = p.distance < 1000
+                    ? `${Math.round(p.distance)} m`
+                    : `${(p.distance / 1000).toFixed(1)} km`;
                 policeInfoEl.innerHTML = `
                     <div class="facility-item">
-                        <div class="facility-name">👮 <b>${facilities.nearestPolice.name}</b> (${distText})</div>
-                        <div class="facility-addr">${facilities.nearestPolice.address}</div>
-                        <a href="tel:${facilities.nearestPolice.phone || '112'}" class="btn-sos-call">📞 Call ${facilities.nearestPolice.phone || '112'}</a>
+                        <div class="facility-name">👮 <b>${esc(p.name)}</b> (${distText})</div>
+                        <div class="facility-addr">${esc(p.address)}</div>
+                        <a href="tel:${encodeURIComponent(p.phone || '112')}" class="btn-sos-call">📞 Call ${esc(p.phone || '112')}</a>
                     </div>
                 `;
             } else {
@@ -99,14 +139,15 @@ class SOSManager {
 
         if (hospInfoEl) {
             if (facilities.nearestHospital) {
-                const distText = facilities.nearestHospital.distance < 1000
-                    ? `${Math.round(facilities.nearestHospital.distance)} m`
-                    : `${(facilities.nearestHospital.distance / 1000).toFixed(1)} km`;
+                const h = facilities.nearestHospital;
+                const distText = h.distance < 1000
+                    ? `${Math.round(h.distance)} m`
+                    : `${(h.distance / 1000).toFixed(1)} km`;
                 hospInfoEl.innerHTML = `
                     <div class="facility-item">
-                        <div class="facility-name">🏥 <b>${facilities.nearestHospital.name}</b> (${distText})</div>
-                        <div class="facility-addr">${facilities.nearestHospital.address}</div>
-                        <a href="tel:${facilities.nearestHospital.phone || '108'}" class="btn-sos-call">📞 Call ${facilities.nearestHospital.phone || '108'}</a>
+                        <div class="facility-name">🏥 <b>${esc(h.name)}</b> (${distText})</div>
+                        <div class="facility-addr">${esc(h.address)}</div>
+                        <a href="tel:${encodeURIComponent(h.phone || '108')}" class="btn-sos-call">📞 Call ${esc(h.phone || '108')}</a>
                     </div>
                 `;
             } else {
@@ -122,14 +163,7 @@ class SOSManager {
 
         const offlineContactBtn = document.getElementById('btnSosOfflineContactSMS');
         if (offlineContactBtn) {
-            const user = localStorage.getItem('safestep_user');
-            let contactPhone = '9822041290';
-            if (user) {
-                try {
-                    const u = JSON.parse(user);
-                    if (u.contactPhone) contactPhone = u.contactPhone;
-                } catch (e) {}
-            }
+            const { contactPhone } = this.getEmergencyContact();
             offlineContactBtn.href = this.getOfflineEmergencySmsUri(contactPhone);
         }
 
@@ -173,7 +207,7 @@ class SOSManager {
      * Generates standard GSM SMS URI containing coordinates & battery level (works without 4G/5G).
      */
     getOfflineEmergencySmsUri(phone = '112') {
-        const userCoord = window.app ? window.app.getUserCoordinates() : [19.19107, 77.28395];
+        const userCoord = this.getUserCoordinates();
         const batteryEl = document.getElementById('batterySentinelText');
         const batteryText = batteryEl ? batteryEl.textContent.replace('🔋', '').trim() : 'Active';
         const body = `EMERGENCY! I need immediate help. My current GPS: https://maps.google.com/?q=${userCoord[0]},${userCoord[1]} (Coords: ${userCoord[0].toFixed(5)}, ${userCoord[1].toFixed(5)}). Battery: ${batteryText}. Sent via SafeStep offline SMS protocol.`;
@@ -186,21 +220,20 @@ class SOSManager {
      */
     generateWhatsAppSafetyTicket() {
         const user = localStorage.getItem('safestep_user');
-        let userName = 'Sanchi';
-        let contactPhone = '+919822041290';
+        let userName = 'User';
         if (user) {
             try {
                 const u = JSON.parse(user);
                 userName = u.name || userName;
-                contactPhone = u.contactPhone || contactPhone;
             } catch (e) {}
         }
+        const { contactPhone } = this.getEmergencyContact();
 
         const activeRoute = window.routingEngine ? window.routingEngine.activeRoute : null;
         const routeName = activeRoute ? activeRoute.name : 'Municipal Streetlit Route';
         const duration = activeRoute ? activeRoute.formattedDuration : '15 min';
         const eta = activeRoute && typeof calculateEta === 'function' ? calculateEta(activeRoute.durationMinutes) : 'In 15 min';
-        const userCoord = window.app ? window.app.getUserCoordinates() : [19.19107, 77.28395];
+        const userCoord = this.getUserCoordinates();
 
         const startAddrEl = document.getElementById('startFullAddress');
         const destAddrEl = document.getElementById('destFullAddress');

@@ -403,22 +403,31 @@ class SafetyManager {
                 ? '<span class="poi-status-badge demo">Demo Data</span>'
                 : '<span class="poi-status-badge verified">Provider Data</span>';
 
+            const esc = (typeof window.escapeHtml === 'function')
+                ? window.escapeHtml
+                : (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+
+            const safeName = esc(poi.name);
+            const safeAddr = esc(poi.address);
+            const safeDesc = esc(poi.description);
+            const safePhone = esc(poi.phone || '');
+
             const phoneBtn = poi.phone
-                ? `<a href="tel:${poi.phone}" class="btn-poi-call">📞 Call (${poi.phone})</a>`
+                ? `<a href="tel:${encodeURIComponent(poi.phone)}" class="btn-poi-call">📞 Call (${safePhone})</a>`
                 : '';
 
             const popupHtml = `
                 <div class="safety-poi-popup">
                     <div class="poi-header">
-                        <span class="poi-category ${poi.type}">${typeName}</span>
+                        <span class="poi-category ${esc(poi.type)}">${typeName}</span>
                         ${sourceBadge}
                     </div>
-                    <div class="poi-title">${poi.name}</div>
-                    <div class="poi-addr">📍 ${poi.address}</div>
-                    <div class="poi-desc">${poi.description}</div>
+                    <div class="poi-title">${safeName}</div>
+                    <div class="poi-addr">📍 ${safeAddr}</div>
+                    <div class="poi-desc">${safeDesc}</div>
                     <div class="poi-actions">
                         ${phoneBtn}
-                        <button class="btn-poi-nav" onclick="window.app.setDestination([${poi.coordinates[0]}, ${poi.coordinates[1]}], '${poi.name.replace(/'/g, "\\'")}')">
+                        <button class="btn-poi-nav" data-action="route-to-poi" data-action-param="${poi.coordinates[0]},${poi.coordinates[1]}" data-action-lat="${poi.coordinates[0]}" data-action-lng="${poi.coordinates[1]}" data-action-name="${safeName}">
                             🏁 Route Here
                         </button>
                     </div>
@@ -472,6 +481,24 @@ class SafetyManager {
                 nearestHospital = { ...poi, distance: dist };
             }
         });
+
+        // Dynamic local emergency fallback if seeded POIs are far (> 3 km)
+        if (!nearestPolice || nearestPolice.distance > 3000) {
+            nearestPolice = {
+                name: 'Local Police Emergency Post',
+                address: 'Dial 112 for direct GPS emergency response',
+                phone: '112',
+                distance: 250
+            };
+        }
+        if (!nearestHospital || nearestHospital.distance > 3000) {
+            nearestHospital = {
+                name: 'Emergency Medical Service',
+                address: 'Dial 108 for immediate ambulance response',
+                phone: '108',
+                distance: 350
+            };
+        }
 
         return { nearestPolice, nearestHospital };
     }

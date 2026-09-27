@@ -534,7 +534,7 @@ class SafeStepApp {
             const scoreClass = r.safetyScore >= 85 ? 'text-green' : (r.safetyScore >= 65 ? 'text-amber' : 'text-red');
 
             html += `
-                <div class="route-option-card ${isSelected ? 'active' : ''} ${escapeHtml(r.type)}" onclick="window.app.switchActiveRoute('${escapeHtml(r.routeId)}')">
+                <div class="route-option-card ${isSelected ? 'active' : ''} ${escapeHtml(r.type)}" data-action="switch-route" data-action-param="${escapeHtml(r.routeId)}">
                     <div class="route-opt-header">
                         <span class="route-opt-title">${icon} ${escapeHtml(r.name.split('(')[0].trim())}</span>
                         <span class="route-opt-score ${scoreClass}">${Number(r.safetyScore) || 0}/100</span>
@@ -1126,6 +1126,30 @@ class SafeStepApp {
     dispatchAction(action, param, e) {
         if (!action) return;
         switch (action) {
+            case 'switch-route':
+                if (param) this.switchActiveRoute(param);
+                break;
+            case 'route-to-poi': {
+                const actionEl = e && e.target ? e.target.closest('[data-action="route-to-poi"]') : null;
+                let lat, lng, name;
+                if (actionEl) {
+                    lat = parseFloat(actionEl.getAttribute('data-action-lat'));
+                    lng = parseFloat(actionEl.getAttribute('data-action-lng'));
+                    name = actionEl.getAttribute('data-action-name');
+                }
+                if ((isNaN(lat) || isNaN(lng)) && param) {
+                    const parts = param.split(',').map(s => parseFloat(s.trim()));
+                    if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                        lat = parts[0];
+                        lng = parts[1];
+                    }
+                }
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    this.setDestination([lat, lng], name || 'Safe Haven');
+                    if (this.map) this.map.closePopup();
+                }
+                break;
+            }
             case 'trigger-sos':
                 if (window.sosManager) window.sosManager.triggerSOS();
                 break;
@@ -1240,13 +1264,19 @@ class SafeStepApp {
         }
 
         // Global Event Delegation for [data-action] elements (CSP compliant)
-        document.addEventListener('click', (e) => {
+        const handleActionTrigger = (e) => {
+            if (e._safeStepHandled) return;
             const actionEl = e.target.closest('[data-action]');
             if (!actionEl) return;
+            e._safeStepHandled = true;
             const action = actionEl.getAttribute('data-action');
             const param = actionEl.getAttribute('data-action-param');
             this.dispatchAction(action, param, e);
-        });
+        };
+        document.addEventListener('click', handleActionTrigger);
+        if (this.map && this.map.getContainer()) {
+            this.map.getContainer().addEventListener('click', handleActionTrigger);
+        }
 
         // Time slider
         const timeSlider = document.getElementById('timeSlider');
