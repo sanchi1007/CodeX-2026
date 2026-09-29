@@ -1567,6 +1567,149 @@ app.get('/api/security/integrity-status', (req, res) => {
 });
 
 // =========================================================================
+// ⏱️ SERVER-SIDE DEAD MAN'S SWITCH (FAIL-SAFE ARRIVAL & BATTERY WATCHDOG)
+// =========================================================================
+class DeadMansSwitchEngine {
+    constructor(ioInstance) {
+        this.io = ioInstance;
+        this.activeTrips = new Map();
+        this.interval = setInterval(() => this.checkDeadlines(), 5000);
+        if (this.interval && typeof this.interval.unref === 'function') {
+            this.interval.unref();
+        }
+    }
+
+    registerTrip({ tripToken, durationMinutes, bufferMinutes = 5, routeName, destination, lastCoord, battery, contactPhone }) {
+        if (!tripToken) return null;
+        const now = Date.now();
+        const mins = Math.max(1, parseInt(durationMinutes, 10) || 10);
+        const buffer = Math.max(1, parseInt(bufferMinutes, 10) || 5);
+        const deadlineTime = new Date(now + (mins + buffer) * 60 * 1000);
+
+        const session = {
+            tripToken,
+            startTime: new Date(now).toISOString(),
+            deadlineTime: deadlineTime.toISOString(),
+            deadlineMs: deadlineTime.getTime(),
+            routeName: routeName || 'Safe Corridor',
+            destination: destination || 'Safe Destination',
+            lastKnownPosition: (Array.isArray(lastCoord) && lastCoord.length === 2) ? lastCoord : [19.16730, 72.93920],
+            batteryAtLastContact: battery || 'Active',
+            contactPhone: contactPhone || null,
+            lastHeartbeat: new Date(now).toISOString(),
+            status: 'active', // 'active' | 'completed' | 'overdue'
+            overdueAlertSent: false
+        };
+
+        this.activeTrips.set(tripToken, session);
+        console.log(`⏱️ [Dead-Man's Switch] Active trip registered: ${tripToken} | Deadline: ${deadlineTime.toLocaleTimeString()}`);
+        return session;
+    }
+
+    updateHeartbeat({ tripToken, coords, lastCoord, battery, remainingMinutes }) {
+        if (!tripToken) return null;
+        const session = this.activeTrips.get(tripToken);
+        if (!session || session.status === 'completed') return null;
+
+        session.lastHeartbeat = new Date().toISOString();
+        const loc = coords || lastCoord;
+        if (Array.isArray(loc) && loc.length === 2 && !isNaN(loc[0]) && !isNaN(loc[1])) {
+            session.lastKnownPosition = loc;
+        }
+        if (battery) {
+            session.batteryAtLastContact = battery;
+        }
+        if (remainingMinutes !== undefined && remainingMinutes !== null) {
+            const remMins = Math.max(1, parseInt(remainingMinutes, 10) || 1);
+            session.deadlineMs = Date.now() + (remMins + 5) * 60 * 1000;
+            session.deadlineTime = new Date(session.deadlineMs).toISOString();
+        }
+        return session;
+    }
+
+    checkInSafely({ tripToken }) {
+        if (!tripToken) return null;
+        const session = this.activeTrips.get(tripToken);
+        if (session) {
+            session.status = 'completed';
+            session.completedAt = new Date().toISOString();
+            if (this.io) {
+                this.io.to(tripToken).emit('trip_completed_safe', {
+                    tripToken,
+                    message: 'Walker checked in safely. Dead-man switch disarmed.',
+                    timestamp: session.completedAt
+                });
+            }
+            console.log(`✅ [Dead-Man's Switch] Trip disarmed: ${tripToken}`);
+            return session;
+        }
+        return null;
+    }
+
+    getTripStatus(tripToken) {
+        if (!tripToken) return null;
+        return this.activeTrips.get(tripToken) || null;
+    }
+
+    checkDeadlines() {
+        const now = Date.now();
+        for (const [token, trip] of this.activeTrips.entries()) {
+            if (trip.status === 'active' && now >= trip.deadlineMs && !trip.overdueAlertSent) {
+                trip.status = 'overdue';
+                trip.overdueAlertSent = true;
+                trip.overdueTriggeredAt = new Date(now).toISOString();
+
+                const alertPayload = {
+                    tripToken: token,
+                    status: 'OVERDUE',
+                    reason: 'Dead-man switch activated: Safe arrival deadline elapsed without check-in (device may be powered down, battery depleted, or user detained).',
+                    lastKnownPosition: trip.lastKnownPosition,
+                    batteryAtLastContact: trip.batteryAtLastContact,
+                    deadlineTime: trip.deadlineTime,
+                    routeName: trip.routeName,
+                    destination: trip.destination,
+                    emergencyAdvice: 'Contact pedestrian immediately or dispatch emergency aid (112) with Last Known Position.'
+                };
+
+                if (this.io) {
+                    this.io.to(token).emit('deadman_overdue_alert', alertPayload);
+                    console.warn(`🚨 [Dead-Man's Switch] OVERDUE TRIGGERED for trip ${token}:`, alertPayload);
+                }
+            }
+        }
+    }
+}
+
+const deadMansSwitch = new DeadMansSwitchEngine(io);
+
+// 🔒 REST Endpoints for Server-Side Dead Man's Switch
+app.post('/api/trip/start', (req, res) => {
+    const session = deadMansSwitch.registerTrip(req.body || {});
+    if (!session) {
+        return res.status(400).json({ success: false, error: 'tripToken is required' });
+    }
+    res.json({ success: true, session });
+});
+
+app.post('/api/trip/heartbeat', (req, res) => {
+    const session = deadMansSwitch.updateHeartbeat(req.body || {});
+    res.json({ success: !!session, session });
+});
+
+app.post('/api/trip/checkin', (req, res) => {
+    const session = deadMansSwitch.checkInSafely(req.body || {});
+    res.json({ success: !!session, session });
+});
+
+app.get('/api/trip/status/:token', (req, res) => {
+    const session = deadMansSwitch.getTripStatus(req.params.token);
+    if (!session) {
+        return res.status(404).json({ success: false, error: 'Trip session not found or expired' });
+    }
+    res.json({ success: true, session });
+});
+
+// =========================================================================
 // ⚡ SOCKET.IO REALTIME CONNECTION MANAGEMENT (SECURITY HARDENED)
 // =========================================================================
 io.on('connection', (socket) => {
@@ -1708,6 +1851,19 @@ io.on('connection', (socket) => {
         }
     });
 
+    // ⏱️ Dead-Man's Switch Monitored Trip Sockets
+    socket.on('start_monitored_trip', (data) => {
+        deadMansSwitch.registerTrip(data || {});
+    });
+
+    socket.on('trip_heartbeat', (data) => {
+        deadMansSwitch.updateHeartbeat(data || {});
+    });
+
+    socket.on('trip_checkin_safe', (data) => {
+        deadMansSwitch.checkInSafely(data || {});
+    });
+
     socket.on('disconnect', () => {
         activeSocketCount = Math.max(0, activeSocketCount - 1);
         console.log(`Client disconnected: ${socket.id} (Remaining: ${activeSocketCount})`);
@@ -1721,4 +1877,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app, server, io, dataStore };
+module.exports = { app, server, io, dataStore, DeadMansSwitchEngine, deadMansSwitch };

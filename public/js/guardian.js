@@ -53,6 +53,8 @@ class GuardianSentinel {
         this.updateGuardianDisplay();
         this.updateHeaderRibbon();
 
+        this.syncServerDeadMansSwitch('start');
+
         console.log(`🛡️ Guardian Sentinel [ACTIVE]: Deadline set to ${this.deadlineTime.toLocaleTimeString()}`);
     }
 
@@ -73,6 +75,7 @@ class GuardianSentinel {
         this.remainingRouteMinutes = Math.max(1, remainingMinutes);
         this.computeDeadline();
         this.updateGuardianDisplay();
+        this.syncServerDeadMansSwitch('heartbeat');
     }
 
     stopArrivalTimer() {
@@ -81,6 +84,7 @@ class GuardianSentinel {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
+        this.syncServerDeadMansSwitch('checkin');
         this.updateHeaderRibbon();
         this.updateGuardianDisplay();
     }
@@ -88,6 +92,11 @@ class GuardianSentinel {
     tick() {
         if (this.state === this.STATES.CONFIRMED_SAFE || this.state === this.STATES.CANCELLED || this.state === this.STATES.IDLE) {
             return;
+        }
+
+        this.tickCount = (this.tickCount || 0) + 1;
+        if (this.tickCount % 15 === 0) {
+            this.syncServerDeadMansSwitch('heartbeat');
         }
 
         const now = Date.now();
@@ -158,6 +167,9 @@ class GuardianSentinel {
 
         const modal = document.getElementById('checkInModal');
         if (modal) modal.classList.remove('active');
+
+        // Disarm server-side dead-man's switch
+        this.syncServerDeadMansSwitch('checkin');
 
         // Record arrival in localStorage
         try {
@@ -341,6 +353,65 @@ class GuardianSentinel {
             } else {
                 contactEl.textContent = '👥 No trusted contact configured';
             }
+        }
+    }
+
+    /**
+     * ⏱️ Syncs trip status with Server-Side Dead Man's Switch (Fail-Safe Battery Watchdog)
+     */
+    async syncServerDeadMansSwitch(action = 'start') {
+        const tripToken = (window.sosManager && typeof window.sosManager.getTripToken === 'function')
+            ? window.sosManager.getTripToken()
+            : null;
+        if (!tripToken) return;
+
+        const userCoord = (window.app && typeof window.app.getUserCoordinates === 'function')
+            ? window.app.getUserCoordinates()
+            : [19.16730, 72.93920];
+
+        const batteryEl = document.getElementById('batterySentinelText');
+        const battery = batteryEl ? batteryEl.textContent.replace('🔋', '').trim() : 'Active';
+
+        const activeRoute = (window.routingEngine && window.routingEngine.activeRoute) ? window.routingEngine.activeRoute : null;
+        const routeName = activeRoute ? activeRoute.name : 'Safe Walking Corridor';
+        const destName = (window.app && window.app.destPlaceName) ? window.app.destPlaceName : 'Destination';
+
+        const payload = {
+            tripToken,
+            durationMinutes: this.remainingRouteMinutes,
+            bufferMinutes: this.bufferMinutes,
+            routeName,
+            destination: destName,
+            lastCoord: userCoord,
+            battery,
+            remainingMinutes: this.remainingRouteMinutes
+        };
+
+        try {
+            if (action === 'start') {
+                if (window.socket) window.socket.emit('start_monitored_trip', payload);
+                await fetch('/api/trip/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {});
+            } else if (action === 'heartbeat') {
+                if (window.socket) window.socket.emit('trip_heartbeat', payload);
+                fetch('/api/trip/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {});
+            } else if (action === 'checkin') {
+                if (window.socket) window.socket.emit('trip_checkin_safe', { tripToken });
+                await fetch('/api/trip/checkin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tripToken })
+                }).catch(() => {});
+            }
+        } catch (e) {
+            console.warn('[Dead-Man Switch Sync] Network fallback:', e);
         }
     }
 }

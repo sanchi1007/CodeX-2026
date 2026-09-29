@@ -205,6 +205,75 @@ async function runIntegration() {
             failed++;
         }
 
+        // Test 6: Server-Side Dead-Man's Switch REST Lifecycle
+        try {
+            const testTripToken = 'trip_test_' + Date.now();
+            
+            // 1. Start trip
+            const startRes = await makeRequest(testServer, {
+                path: '/api/trip/start',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }, {
+                tripToken: testTripToken,
+                durationMinutes: 15,
+                bufferMinutes: 5,
+                lastCoord: [19.1673, 72.9392],
+                battery: '85%',
+                routeName: 'Safe Main Road',
+                destination: 'Home'
+            });
+
+            assert.strictEqual(startRes.status, 200);
+            assert.strictEqual(startRes.body.success, true);
+            assert.strictEqual(startRes.body.session.tripToken, testTripToken);
+            assert.strictEqual(startRes.body.session.status, 'active');
+            assert.strictEqual(startRes.body.session.batteryAtLastContact, '85%');
+
+            // 2. Heartbeat update
+            const hbRes = await makeRequest(testServer, {
+                path: '/api/trip/heartbeat',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }, {
+                tripToken: testTripToken,
+                lastCoord: [19.1690, 72.9410],
+                battery: '4%', // low battery before shutdown
+                remainingMinutes: 8
+            });
+
+            assert.strictEqual(hbRes.status, 200);
+            assert.strictEqual(hbRes.body.success, true);
+            assert.strictEqual(hbRes.body.session.batteryAtLastContact, '4%');
+            assert.deepStrictEqual(hbRes.body.session.lastKnownPosition, [19.1690, 72.9410]);
+
+            // 3. Status retrieval
+            const statusRes = await makeRequest(testServer, {
+                path: `/api/trip/status/${testTripToken}`,
+                method: 'GET'
+            });
+            assert.strictEqual(statusRes.status, 200);
+            assert.strictEqual(statusRes.body.session.status, 'active');
+            assert.strictEqual(statusRes.body.session.batteryAtLastContact, '4%');
+
+            // 4. Safe check-in
+            const checkinRes = await makeRequest(testServer, {
+                path: '/api/trip/checkin',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }, { tripToken: testTripToken });
+
+            assert.strictEqual(checkinRes.status, 200);
+            assert.strictEqual(checkinRes.body.success, true);
+            assert.strictEqual(checkinRes.body.session.status, 'completed');
+
+            console.log('  ✅ PASS: Server-side dead-man switch REST lifecycle (start, heartbeat, status, check-in disarm)');
+            passed++;
+        } catch (e) {
+            console.error('  ❌ FAIL: Dead-man switch integration test failed', e);
+            failed++;
+        }
+
     } finally {
         await new Promise((resolve) => testServer.close(resolve));
     }

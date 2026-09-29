@@ -240,6 +240,34 @@ class SafeStepApp {
                     window.voiceNavigator.speak('Emergency alert received for tracked pedestrian!', true);
                 }
             });
+
+            // ⏱️ Dead-Man's Switch Overdue Watchdog Alert
+            window.socket.on('deadman_overdue_alert', (data) => {
+                const lkp = (data.lastKnownPosition && data.lastKnownPosition.length === 2)
+                    ? `[${data.lastKnownPosition[0].toFixed(5)}, ${data.lastKnownPosition[1].toFixed(5)}]`
+                    : 'Unknown';
+                const msg = `🚨 DEAD-MAN'S SWITCH OVERDUE: Pedestrian did not check in by deadline. Battery at last contact: ${data.batteryAtLastContact || 'N/A'}. LKP: ${lkp}`;
+                window.showToast(msg);
+                if (window.voiceNavigator) {
+                    window.voiceNavigator.speak('Alert: Monitored pedestrian safe arrival deadline elapsed without check-in. Dead-man switch activated.', true);
+                }
+                if (data.lastKnownPosition && this.map && typeof L !== 'undefined') {
+                    this.map.flyTo(data.lastKnownPosition, 17, { duration: 1.0 });
+                    L.circleMarker(data.lastKnownPosition, {
+                        radius: 12,
+                        color: '#ef4444',
+                        fillColor: '#ef4444',
+                        fillOpacity: 0.8
+                    }).addTo(this.map).bindPopup(`🚨 <b>DEAD-MAN'S SWITCH ALERT</b><br>Safe arrival overdue.<br>Battery at last contact: ${data.batteryAtLastContact || 'N/A'}<br>Last Known Position: ${lkp}`).openPopup();
+                }
+            });
+
+            window.socket.on('trip_completed_safe', (data) => {
+                window.showToast(`✅ Safe arrival confirmed: ${data.message || 'Walker checked in safely.'}`);
+                if (window.voiceNavigator) {
+                    window.voiceNavigator.speak('Tracked pedestrian has checked in safely. Trip completed.', false);
+                }
+            });
         }
     }
 

@@ -319,10 +319,69 @@ async function runTests() {
         assert.ok(cssContent.includes('.route-option-card.active.fastest'), 'Fastest route option card must have red active state');
     });
 
+    // 16. Server-Side Dead-Man's Switch (Fail-Safe Battery Watchdog)
+    test("Requirement 16: Dead-Man's Switch integrates client watchdog sync and server overdue trigger", () => {
+        const publicJsDir = path.join(__dirname, '..', 'public', 'js');
+        const guardianContent = fs.readFileSync(path.join(publicJsDir, 'guardian.js'), 'utf8');
+        const appContent = fs.readFileSync(path.join(publicJsDir, 'app.js'), 'utf8');
+
+        assert.ok(guardianContent.includes('syncServerDeadMansSwitch'), 'guardian.js must define syncServerDeadMansSwitch');
+        assert.ok(guardianContent.includes("this.syncServerDeadMansSwitch('start')"), 'guardian.js must sync start on timer initialization');
+        assert.ok(guardianContent.includes("this.syncServerDeadMansSwitch('heartbeat')"), 'guardian.js must sync periodic heartbeats');
+        assert.ok(guardianContent.includes("this.syncServerDeadMansSwitch('checkin')"), 'guardian.js must sync checkin on safe arrival/stop');
+
+        assert.ok(appContent.includes('deadman_overdue_alert'), 'app.js tracking room must listen to deadman_overdue_alert');
+        assert.ok(appContent.includes('trip_completed_safe'), 'app.js tracking room must listen to trip_completed_safe');
+
+        // Test Engine Logic
+        const { DeadMansSwitchEngine } = require('../index');
+        let emittedRoom = null;
+        let emittedEvent = null;
+        let emittedData = null;
+
+        const mockIo = {
+            to: (room) => ({
+                emit: (event, data) => {
+                    emittedRoom = room;
+                    emittedEvent = event;
+                    emittedData = data;
+                }
+            })
+        };
+
+        const engine = new DeadMansSwitchEngine(mockIo);
+        // Clear interval so it doesn't run in background of tests
+        if (engine.interval) clearInterval(engine.interval);
+
+        const trip = engine.registerTrip({
+            tripToken: 'trip_unit_test',
+            durationMinutes: 1,
+            bufferMinutes: 0,
+            lastCoord: [19.1673, 72.9392],
+            battery: '2%'
+        });
+
+        assert.strictEqual(trip.status, 'active');
+        assert.strictEqual(trip.batteryAtLastContact, '2%');
+
+        // Artificially move deadline to the past
+        trip.deadlineMs = Date.now() - 1000;
+        engine.checkDeadlines();
+
+        assert.strictEqual(trip.status, 'overdue');
+        assert.strictEqual(trip.overdueAlertSent, true);
+        assert.strictEqual(emittedRoom, 'trip_unit_test');
+        assert.strictEqual(emittedEvent, 'deadman_overdue_alert');
+        assert.strictEqual(emittedData.status, 'OVERDUE');
+        assert.deepStrictEqual(emittedData.lastKnownPosition, [19.1673, 72.9392]);
+        assert.strictEqual(emittedData.batteryAtLastContact, '2%');
+    });
+
     console.log(`\n📊 TEST SUMMARY: ${passed} Passed, ${failed} Failed\n`);
     if (failed > 0) {
         process.exit(1);
     }
+    process.exit(0);
 }
 
 runTests();
